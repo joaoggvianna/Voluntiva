@@ -67,6 +67,56 @@ Cliente ONG ─────────┼── TCP / Protocolo Voluntiva ─�
 Cliente Unidade ─────┘
 ```
 
+## Identidade visual do frontend
+
+A interface web seguirá uma identidade visual acolhedora, moderna e ligada à ideia de comunidade e impacto social.
+
+### Paleta principal
+
+| Uso | Cor | Hex |
+| --- | --- | --- |
+| Primária | Azul petróleo | `#1F5F63` |
+| Secundária | Azul claro suave | `#DDEFF0` |
+| Destaque | Coral | `#F27A5A` |
+| Fundo | Off-white | `#F8FAF9` |
+| Texto | Grafite | `#263238` |
+| Bordas | Cinza claro | `#D9E2E1` |
+
+### Cores de estado
+
+| Estado | Hex |
+| --- | --- |
+| Sucesso | `#3F7D58` |
+| Aviso | `#D99A35` |
+| Erro | `#C94C4C` |
+
+### Diretrizes de uso
+
+- Aproximadamente **70% de tons neutros**, **20% de azul petróleo** e **10% de coral**;
+- Azul petróleo para identidade, navegação, ícones e ações secundárias;
+- Coral reservado principalmente para CTAs e ações importantes;
+- Fundo majoritariamente off-white ou branco para manter leveza e legibilidade;
+- Cards com bordas discretas e contraste moderado, evitando excesso de cores e gradientes;
+- A interface deve transmitir confiança, proximidade e organização sem assumir uma estética corporativa excessiva.
+
+Exemplo de variáveis CSS:
+
+```css
+:root {
+  --primary: #1F5F63;
+  --primary-light: #DDEFF0;
+  --accent: #F27A5A;
+  --background: #F8FAF9;
+  --surface: #FFFFFF;
+  --text: #263238;
+  --text-muted: #6B7777;
+  --border: #D9E2E1;
+  --success: #3F7D58;
+  --warning: #D99A35;
+  --danger: #C94C4C;
+}
+```
+
 ## Equipe
 
 - Carlos Gabriel Gouveia
