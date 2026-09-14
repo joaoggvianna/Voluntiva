@@ -138,3 +138,18 @@ Exemplo de variáveis CSS:
 5. Definição da stack de desenvolvimento;
 6. Implementação do servidor e dos clientes;
 7. Integração e testes.
+
+
+## Protocolo VAP implementado
+
+O m?dulo [voluntiva_vap](voluntiva_vap/README.md) cont?m o servidor TCP, o cliente,
+os testes e a especifica??o VAP/1.0. As prote??es implementadas e as limita??es
+est?o em [Seguran?a do VAP](voluntiva_vap/docs/SECURITY.md).
+
+Para executar, entre em `voluntiva_vap`, crie e ative um ambiente virtual com
+Python 3.11+, instale `requirements.txt` e execute `pytest -v`. Inicie o servidor
+com `python -m protocol.server` e, em outro terminal com o mesmo ambiente,
+execute `python -m protocol.client`.
+
+A implementa??o usa autentica??o e servi?os mock para valida??o local; a integra??o
+com banco e autentica??o reais e a configura??o TLS de produ??o continuam pendentes.
