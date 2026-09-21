@@ -1,0 +1,25 @@
+# ---- API HTTP ----
+fastapi==0.141.1
+uvicorn[standard]==0.53.0
+python-multipart==0.0.20
+
+# ---- Validação / configuração ----
+pydantic==2.13.5
+pydantic-settings==2.15.0
+email-validator==2.3.0
+
+# ---- Banco de dados ----
+SQLAlchemy==2.0.52
+psycopg[binary]==3.3.5
+
+# ---- Autenticação ----
+# PyJWT em vez de python-jose: manutenção ativa e é o que a documentação
+# do FastAPI usa hoje.
+PyJWT==2.14.0
+# argon2-cffi direto, sem passlib: o passlib está sem release desde 2020 e
+# quebra com bcrypt 4.x. O hash gerado aqui satisfaz a CHECK constraint
+# usuario_senha_hash_chk do schema (formato PHC, começa com "$").
+argon2-cffi==25.1.0
+
+# ---- WebSocket (notificações em tempo real) ----
+websockets==17.1

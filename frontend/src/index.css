@@ -1,0 +1,31 @@
+@import "tailwindcss";
+
+/* Tokens da identidade visual definida no README.
+   No Tailwind v4, tudo que entra em @theme vira utilitário automaticamente:
+   --color-primary  ->  bg-primary, text-primary, border-primary ... */
+@theme {
+  --color-primary: #1F5F63;
+  --color-primary-light: #DDEFF0;
+  --color-accent: #F27A5A;
+  --color-background: #F8FAF9;
+  --color-surface: #FFFFFF;
+  --color-ink: #263238;
+  --color-ink-muted: #6B7777;
+  --color-edge: #D9E2E1;
+  --color-success: #3F7D58;
+  --color-warning: #D99A35;
+  --color-danger: #C94C4C;
+
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --radius-card: 0.75rem;
+}
+
+/* Proporção sugerida no README: ~70% neutros, ~20% azul petróleo, ~10% coral.
+   O coral fica reservado a CTA — evitem usá-lo como cor de navegação. */
+body {
+  @apply bg-background text-ink font-sans antialiased;
+}
+
+:focus-visible {
+  @apply outline-2 outline-offset-2 outline-primary;
+}
