@@ -1,23 +1,29 @@
 {
+  // A interface é escrita em JSX/JavaScript. Este tsconfig existe para os
+  // poucos arquivos .ts da camada de integração com o backend real
+  // (src/lib/api.ts, src/lib/ws.ts, src/types/index.ts) e para dar ao
+  // editor a resolução do alias "@" nos arquivos .js/.jsx.
+  //
+  // allowJs + checkJs:false => os .jsx são resolvidos, mas não checados.
+  // A migração da UI para TypeScript (item da stack no CLAUDE.md) ainda
+  // não foi feita: TODO(equipe).
   "compilerOptions": {
     "target": "ES2022",
-    "useDefineForClassFields": true,
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "module": "ESNext",
-    "skipLibCheck": true,
     "moduleResolution": "bundler",
-    "allowImportingTsExtensions": true,
     "resolveJsonModule": true,
     "isolatedModules": true,
     "moduleDetection": "force",
-    "noEmit": true,
     "jsx": "react-jsx",
     "strict": true,
-    "noUnusedLocals": true,
-    "noUnusedParameters": true,
-    "noFallthroughCasesInSwitch": true,
-    "types": ["vite/client", "node"],
+    "noEmit": true,
+    "skipLibCheck": true,
+    "allowJs": true,
+    "checkJs": false,
+    "types": ["vite/client"],
+    "baseUrl": ".",
     "paths": { "@/*": ["./src/*"] }
   },
-  "include": ["src", "vite.config.ts"]
+  "include": ["src"]
 }

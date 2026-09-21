@@ -1,0 +1,32 @@
+export const notificacoesSeed = [
+  {
+    id: 1,
+    usuarioId: 1,
+    tipo: "criada",
+    acaoId: 2,
+    titulo: "Nova ação disponível",
+    mensagem: "A ONG Amigos da Floresta criou a ação \"Oficina de educação ambiental\".",
+    lida: false,
+    createdAt: "2026-09-05T10:00:00.000Z",
+  },
+  {
+    id: 2,
+    usuarioId: 1,
+    tipo: "atualizada",
+    acaoId: 1,
+    titulo: "Ação atualizada",
+    mensagem: "A ação \"Mutirão de plantio na Serra da Cantareira\" teve o horário confirmado para 08:00 às 12:00.",
+    lida: false,
+    createdAt: "2026-09-14T10:00:00.000Z",
+  },
+  {
+    id: 3,
+    usuarioId: 2,
+    tipo: "inscricao",
+    acaoId: 1,
+    titulo: "Nova inscrição",
+    mensagem: "Carlos Oliveira se inscreveu em \"Mutirão de plantio na Serra da Cantareira\".",
+    lida: false,
+    createdAt: "2026-09-12T10:00:00.000Z",
+  },
+]

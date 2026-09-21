@@ -1,3 +1,11 @@
+/* ---------------------------------------------------------------------
+ * Canal de notificações em tempo real (/ws/notificacoes do FastAPI).
+ *
+ * STATUS: ainda NÃO está ligado às telas — o sino de notificações
+ * (src/components/SinoNotificacoes.jsx) lê do mock em src/lib/servico.js.
+ * TODO(equipe): trocar o polling do mock por este cliente.
+ * ------------------------------------------------------------------ */
+
 import type { Notificacao } from '@/types'
 import { tokenStore } from './api'
 

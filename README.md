@@ -125,31 +125,97 @@ Exemplo de variáveis CSS:
 - João Victor Pereira Bicalho
 - Mateus Munhoz Guimarães
 
-## Status
 
-🚧 Projeto em fase inicial de planejamento e definição da arquitetura.
+## Estrutura do repositório
 
-## Próximos passos
+```text
+.
+├── backend/            # Python
+│   ├── app/            # API REST + WebSocket (FastAPI)
+│   │   ├── api/v1/     # rotas HTTP
+│   │   ├── services/   # regra de negócio (fonte única, usada pelos dois transportes)
+│   │   ├── models/     # SQLAlchemy — mapeia o schema, não o gera
+│   │   └── core/       # config, segurança (JWT/Argon2), exceções de domínio
+│   ├── protocol/       # servidor do protocolo VAP sobre TCP puro
+│   └── tests/          # pytest (app/ e protocol/)
+├── db/migrations/      # fonte da verdade do schema, em SQL numerado
+├── docs/               # VAP.md e SECURITY.md — especificação do protocolo
+└── frontend/           # React + Vite + Tailwind (ver frontend/README.md)
+```
 
-1. Levantamento e documentação dos requisitos;
-2. Definição dos casos de uso;
-3. Modelagem do banco de dados;
-4. Especificação do protocolo de comunicação;
-5. Definição da stack de desenvolvimento;
-6. Implementação do servidor e dos clientes;
-7. Integração e testes.
+Os dois transportes — HTTP e VAP — chamam **as mesmas funções** de
+`backend/app/services/`. Regra de negócio nunca é reimplementada dentro
+de `protocol/`; cada transporte só traduz a exceção de domínio para o seu
+próprio formato de erro.
 
+## Como executar
 
-## Protocolo VAP implementado
+### Backend
 
-O m?dulo [voluntiva_vap](voluntiva_vap/README.md) cont?m o servidor TCP, o cliente,
-os testes e a especifica??o VAP/1.0. As prote??es implementadas e as limita??es
-est?o em [Seguran?a do VAP](voluntiva_vap/docs/SECURITY.md).
+```bash
+cd backend
+python -m venv .venv && .venv/Scripts/pip install -r requirements-dev.txt   # Windows
+cp ../.env.example ../.env    # editar DATABASE_URL e JWT_SECRET
 
-Para executar, entre em `voluntiva_vap`, crie e ative um ambiente virtual com
-Python 3.11+, instale `requirements.txt` e execute `pytest -v`. Inicie o servidor
-com `python -m protocol.server` e, em outro terminal com o mesmo ambiente,
-execute `python -m protocol.client`.
+.venv/Scripts/python -m uvicorn app.main:app --reload --port 8000   # API REST
+.venv/Scripts/python -m protocol                                    # servidor VAP (porta 5050)
+.venv/Scripts/python -m pytest                                      # testes (não exigem banco)
+```
 
-A implementa??o usa autentica??o e servi?os mock para valida??o local; a integra??o
-com banco e autentica??o reais e a configura??o TLS de produ??o continuam pendentes.
+Em Linux/macOS troque `.venv/Scripts/` por `.venv/bin/`.
+
+`DATABASE_URL` deve usar a porta **5432** do Supabase (Session pooler) e
+não a 6543: o pooler transacional não mantém sessão entre statements, o
+que quebra o `SELECT ... FOR UPDATE` do controle de lotação de vagas.
+
+### Frontend
+
+```bash
+cd frontend
+npm install
+cp .env.example .env.local
+npm run dev    # http://localhost:5173
+```
+
+### Banco
+
+As migrations em `db/migrations/` são aplicadas **em ordem**, no SQL
+Editor do Supabase ou num Postgres local. O schema não é gerado pelo ORM:
+nunca rode `Base.metadata.create_all()`.
+
+## Protocolo VAP
+
+O protocolo próprio da aplicação, sobre TCP, está especificado em
+[docs/VAP.md](docs/VAP.md); as proteções implementadas e as limitações
+conhecidas, em [docs/SECURITY.md](docs/SECURITY.md).
+
+A implementação fica em `backend/protocol/`. Há dois modos de execução:
+
+| Comando | Autenticação e serviços | Uso |
+| --- | --- | --- |
+| `python -m protocol.server` | mocks (`auth.py`, `services.py`) | testes do protocolo isolado |
+| `python -m protocol` | adapters reais (`auth_db.py`, `services_db.py`) | contra o Postgres |
+
+Não existe login por senha no VAP: o cliente autentica primeiro pela API
+REST (`POST /api/v1/auth/login`), recebe o JWT e o envia no comando
+`AUTH`. O servidor decodifica o token **e consulta o banco** para
+confirmar que a conta continua ativa.
+
+Para experimentar, suba o servidor e, em outro terminal com o mesmo
+ambiente virtual, execute `python -m protocol.client`.
+
+## Estado do projeto
+
+**Funcionando e testado ponta a ponta** (REST + VAP contra Postgres
+real): registro, login, listagem de ações, inscrição, cancelamento,
+reinscrição, disputa da última vaga, check-in/check-out com cálculo de
+horas.
+
+**Pendente** (marcado com `TODO(equipe)` no código):
+
+- `CREATE_EVENT` / `UPDATE_EVENT` e `LIST_NOTIFICATIONS` no VAP;
+- decisão sobre `CHECK_IN`/`CHECK_OUT` entrarem ou não na spec do VAP;
+- filtro por habilidade e disponibilidade do voluntário (RF004);
+- ligar as telas do frontend à API real (hoje usam mock em `localStorage`);
+- `docker-compose.yml` e guia de setup;
+- TLS no servidor VAP e cookie `httpOnly` no lugar do `localStorage` para o JWT.

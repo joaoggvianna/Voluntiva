@@ -1,3 +1,13 @@
+/* ---------------------------------------------------------------------
+ * Cliente da API REST do backend (backend/app/api/v1).
+ *
+ * STATUS: ainda NÃO está ligado às telas. Hoje as páginas leem e gravam
+ * pelo mock em src/lib/servico.js (localStorage, dados-semente em
+ * src/data/). Este arquivo é o ponto de troca: quando a UI passar a
+ * falar com o FastAPI, as chamadas de servico.js migram para cá.
+ * TODO(equipe): ligar tela por tela e remover o mock ao final.
+ * ------------------------------------------------------------------ */
+
 import type { AcaoComVagas, Inscricao, TokenResponse, Usuario } from '@/types'
 
 const BASE = import.meta.env.VITE_API_URL ?? ''
