@@ -2,13 +2,14 @@
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.deps import usuario_atual
 from app.api.autorizacao import exigir_acesso_acao
 from app.core.exceptions import ConflitoDeEstado, RecursoNaoEncontrado
 from app.db.session import get_db
-from app.models import AcaoSocial, Inscricao, Usuario
+from app.models import AcaoSocial, Inscricao, Usuario, Voluntario
 from app.schemas.inscricao import (
     InscricaoCancel,
     InscricaoCreate,
@@ -18,6 +19,23 @@ from app.schemas.inscricao import (
 from app.services import inscricao_service
 
 router = APIRouter(prefix="/inscricoes", tags=["inscrições"])
+
+
+@router.get("/minhas", response_model=list[InscricaoResponse])
+def minhas(
+    db: Session = Depends(get_db), usuario: Usuario = Depends(usuario_atual)
+):
+    """Consulta somente inscrições do voluntário autenticado."""
+    voluntario = db.scalar(
+        select(Voluntario).where(Voluntario.usuario_id == usuario.id)
+    )
+    if voluntario is None:
+        return []
+    return db.scalars(
+        select(Inscricao)
+        .where(Inscricao.voluntario_id == voluntario.id)
+        .order_by(Inscricao.inscrito_em.desc())
+    ).all()
 
 
 @router.post("", response_model=InscricaoResponse, status_code=status.HTTP_201_CREATED)
