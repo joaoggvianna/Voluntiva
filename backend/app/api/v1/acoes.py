@@ -4,7 +4,8 @@ import uuid
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
-from app.api.deps import exigir_tipo, usuario_atual
+from app.api.deps import exigir_tipo
+from app.api.autorizacao import exigir_acesso_acao, exigir_acesso_ong, exigir_unidade_da_ong
 from app.core.exceptions import RecursoNaoEncontrado
 from app.db.session import get_db
 from app.models import StatusAcao, TipoUsuario, Usuario
@@ -41,7 +42,8 @@ def criar(
     db: Session = Depends(get_db),
     usuario: Usuario = Depends(exigir_tipo(TipoUsuario.ONG, TipoUsuario.ADMIN)),
 ):
-    # TODO(equipe): confirmar via ong_membro que este usuário pertence a dados.ong_id.
+    exigir_acesso_ong(db, usuario, dados.ong_id, dados.unidade_id)
+    exigir_unidade_da_ong(db, dados.ong_id, dados.unidade_id)
     return acao_service.criar(db, dados, criado_por=usuario.id)
 
 
@@ -53,6 +55,8 @@ def atualizar(
     usuario: Usuario = Depends(exigir_tipo(TipoUsuario.ONG, TipoUsuario.ADMIN)),
 ):
     try:
+        acao = acao_service.obter(db, acao_id)
+        exigir_acesso_acao(db, usuario, acao)
         return acao_service.atualizar(db, acao_id, dados)
     except RecursoNaoEncontrado as exc:
         raise HTTPException(status.HTTP_404_NOT_FOUND, exc.mensagem)
