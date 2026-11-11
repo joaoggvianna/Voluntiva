@@ -1,75 +1,32 @@
 # Frontend — Voluntiva
 
-Interface web do Voluntiva. React + Vite + Tailwind CSS, com os
-componentes de base vindos do shadcn/ui (`src/components/ui/`).
+Interface React 18 + Vite 5 + Tailwind 3.
 
-## Estado atual: a UI ainda roda sobre um mock
+## Estado da integração (11/11/2026)
 
-As telas **não falam com o backend** (`backend/app/`) por enquanto. Os
-dados-semente ficam em `src/data/` e as alterações são gravadas no
-`localStorage` do navegador, pela dupla:
+A entrada `src/App.jsx` monta `src/RealApp.jsx`, que utiliza somente o cliente REST `src/lib/api.ts` e o FastAPI. A interface ativa **não usa os dados mockados** de `src/data/` nem `src/lib/servico.js`.
 
-- `src/lib/armazenamento.js` — persistência (leitura/gravação/sessão);
-- `src/lib/servico.js` — regras de negócio simuladas.
+Fluxos implementados na interface ativa:
+- Cadastro e autenticação de voluntários;
+- Consulta de ações publicadas e detalhes;
+- Inscrição/cancelamento e listagem de inscrições próprias;
+- Consulta de ONGs às quais o gestor está vinculado;
+- Criação, publicação e cancelamento de ações da ONG.
 
-As coleções do mock seguem o modelo relacional de `db/migrations/`:
-`usuarios`, `ongs`, `unidades`, `acoes`, `inscricoes`, `notificacoes`.
+O código da interface mock original foi mantido como referência para implementação futura de funcionalidades não cobertas pelo MVP real. **Não se deve apresentar as funcionalidades mock como entregues.**
 
-A camada de integração com o backend real **já existe e está pronta para
-uso**, mas nenhuma tela a importa ainda:
-
-| Arquivo | O que é |
-| --- | --- |
-| `src/lib/api.ts` | cliente da API REST (`/api/v1`), com JWT |
-| `src/lib/ws.ts` | canal `/ws/notificacoes`, com reconexão exponencial |
-| `src/types/index.ts` | tipos espelhando os schemas Pydantic do backend |
-
-**TODO(equipe):** migrar as chamadas de `servico.js` para `api.ts`, tela
-por tela, e remover o mock ao final.
-
-## Como executar
+### Rodando
 
 ```bash
-npm install
-cp .env.example .env.local
-npm run dev     # http://localhost:5173
+npm ci
+npm run dev
+npm run build
+npm run lint
+npm run typecheck
 ```
 
-O `vite.config.js` já faz proxy de `/api` para `http://localhost:8000` e
-de `/ws` para o mesmo host, então não há CORS em desenvolvimento. Como
-nada chama essas rotas ainda, o backend não precisa estar no ar para a
-UI funcionar.
+O proxy do Vite encaminha `/api` ao FastAPI em `http://localhost:8000`. Configure `frontend/.env.local` somente se a API estiver em endereço diferente. Para execução com Nginx, `frontend/nginx.conf` pressupõe o hostname Docker `backend`.
 
-Outros comandos:
+**Limitações de segurança:** JWT ainda é persistido em `localStorage` no protótipo acadêmico. Não exponha a usuários reais sem migrar a sessão para cookie `httpOnly` e HTTPS. Cadastro de ONG, unidades, gerenciamento de presença, notificações e filtro RF004 ainda exigem endpoints/telas adicionais.
 
-```bash
-npm run build      # gera dist/
-npm run lint       # eslint nos .js/.jsx
-npm run typecheck  # tsc nos poucos arquivos .ts
-```
-
-## Contas de teste (mock)
-
-| Tipo | E-mail | Senha |
-| --- | --- | --- |
-| Voluntário | voluntario@teste.com | 123456 |
-| ONG | ong@teste.com | 123456 |
-
-Para restaurar os dados iniciais, limpe os dados do site no navegador.
-
-## Divergências registradas
-
-Dois pontos em que o frontend não bate com o que o `CLAUDE.md` descreve.
-Nenhum dos dois é acidente de integração — os dois são decisão pendente
-da equipe:
-
-1. **JavaScript em vez de TypeScript, Tailwind 3 em vez de 4,
-   React 18 em vez de 19.** A UI foi construída assim e funciona; migrar
-   ~5.400 linhas de JSX é trabalho à parte. Os componentes do shadcn/ui
-   também estão gerados para Tailwind 3 (`tailwind.config.js` +
-   `postcss.config.js`), que o Tailwind 4 substitui pelo bloco `@theme`.
-
-2. **A paleta não é a do README.** O README define azul petróleo
-   (`#1F5F63`) + coral (`#F27A5A`); `src/index.css` usa um verde
-   esmeralda (`--primary: 160 84% 32%`). Trocar é mexer em variável CSS,
-   mas é decisão de UX — não foi alterado aqui.
+Veja [documentação de integração](../docs/INTEGRACAO_FRONTEND.md) para contratos, execução e checklist de validação.
