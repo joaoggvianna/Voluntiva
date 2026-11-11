@@ -5,9 +5,10 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import usuario_atual
+from app.api.autorizacao import exigir_acesso_acao
 from app.core.exceptions import ConflitoDeEstado, RecursoNaoEncontrado
 from app.db.session import get_db
-from app.models import Usuario
+from app.models import AcaoSocial, Inscricao, Usuario
 from app.schemas.inscricao import (
     InscricaoCancel,
     InscricaoCreate,
@@ -56,6 +57,13 @@ def check_in(
     db: Session = Depends(get_db),
     usuario: Usuario = Depends(usuario_atual),
 ):
+    inscricao = db.get(Inscricao, inscricao_id)
+    if inscricao is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, 'Inscrição não encontrada')
+    acao = db.get(AcaoSocial, inscricao.acao_id)
+    if acao is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, 'Ação social não encontrada')
+    exigir_acesso_acao(db, usuario, acao)
     try:
         return inscricao_service.check_in(db, inscricao_id, registrado_por=usuario.id)
     except ConflitoDeEstado as exc:
@@ -68,6 +76,13 @@ def check_out(
     db: Session = Depends(get_db),
     usuario: Usuario = Depends(usuario_atual),
 ):
+    inscricao = db.get(Inscricao, inscricao_id)
+    if inscricao is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, 'Inscrição não encontrada')
+    acao = db.get(AcaoSocial, inscricao.acao_id)
+    if acao is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, 'Ação social não encontrada')
+    exigir_acesso_acao(db, usuario, acao)
     try:
         return inscricao_service.check_out(db, inscricao_id)
     except ConflitoDeEstado as exc:
