@@ -211,11 +211,13 @@ real): registro, login, listagem de ações, inscrição, cancelamento,
 reinscrição, disputa da última vaga, check-in/check-out com cálculo de
 horas.
 
-**Pendente** (marcado com `TODO(equipe)` no código):
+**Integração frontend em revisão** (branch de trabalho): a aplicação ativa foi substituída por um MVP conectado à API REST. Cadastro/login de voluntário, consulta de ações, inscrições e criação/publicação básica por ONG têm implementação, ainda **sem validação em execução**. A UI avançada anterior permanece apenas como referência mock; veja [docs/INTEGRACAO_FRONTEND.md](docs/INTEGRACAO_FRONTEND.md).
+
+**Pendente** (marcado com `TODO(equipe)` no código ou nos documentos):
 
 - `CREATE_EVENT` / `UPDATE_EVENT` e `LIST_NOTIFICATIONS` no VAP;
 - decisão sobre `CHECK_IN`/`CHECK_OUT` entrarem ou não na spec do VAP;
 - filtro por habilidade e disponibilidade do voluntário (RF004);
-- ligar as telas do frontend à API real (hoje usam mock em `localStorage`);
+- restaurar funções avançadas da UI anterior com a API real (presença, notificações, unidades e edição);
 - `docker-compose.yml` e guia de setup;
 - TLS no servidor VAP e cookie `httpOnly` no lugar do `localStorage` para o JWT.
