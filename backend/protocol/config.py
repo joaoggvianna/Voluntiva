@@ -1,6 +1,7 @@
-from dataclasses import dataclass
-import os
 import math
+import os
+from dataclasses import dataclass
+
 
 @dataclass(frozen=True)
 class ProtocolConfig:

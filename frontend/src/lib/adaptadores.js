@@ -88,6 +88,7 @@ export function paraAcao(api) {
     vagas: api.vagas,
     inscritos: api.vagas_ocupadas,
     vagasRestantes: Math.max(api.vagas_disponiveis, 0),
+    emListaEspera: api.em_lista_espera,
     status: api.status,
     situacao: situacaoDaAcao(api.status, api.fim),
     ong: { id: api.ong_id, nome: api.ong_nome },
@@ -144,6 +145,7 @@ export function estadoPresenca(inscrito) {
 export function paraInscrito(api) {
   return {
     id: api.inscricao_id,
+    inscritoEm: api.inscrito_em,
     status: api.status,
     checkIn: api.check_in,
     checkOut: api.check_out,

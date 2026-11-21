@@ -6,12 +6,17 @@ concorrência. Estes serviços apenas traduzem o erro do banco.
 
 Inscrição e cancelamento avisam os gestores da ONG (notificação gravada
 na mesma transação; ver notificacao_service).
+
+Lista de espera: com `lista_espera=True`, quem chega numa ação lotada
+entra na fila (status lista_espera). Quando uma vaga confirmada é
+cancelada, ou a ONG aumenta as vagas, os primeiros da fila são
+confirmados na mesma transação e avisados.
 """
 import datetime as dt
 import uuid
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -32,6 +37,7 @@ from app.models import (
 from app.services import notificacao_service
 
 _ACAO_ENCERRADA = frozenset({StatusAcao.CONCLUIDA, StatusAcao.CANCELADA})
+_ACAO_ACEITA_INSCRICAO = frozenset({StatusAcao.PUBLICADA, StatusAcao.EM_ANDAMENTO})
 
 
 def _voluntario_do_usuario(db: Session, usuario_id: uuid.UUID) -> Voluntario:
@@ -72,7 +78,34 @@ def _traduzir_erro_inscricao(db: Session, exc: IntegrityError) -> Exception:
     return exc
 
 
-def inscrever(db: Session, usuario_id: uuid.UUID, acao_id: uuid.UUID) -> Inscricao:
+def contar_confirmadas(db: Session, acao_id: uuid.UUID) -> int:
+    return db.scalar(
+        select(func.count()).select_from(Inscricao).where(
+            Inscricao.acao_id == acao_id,
+            Inscricao.status == StatusInscricao.CONFIRMADA,
+        )
+    ) or 0
+
+
+def _acao_aberta_para_inscricao(db: Session, acao_id: uuid.UUID) -> AcaoSocial:
+    """Trava a linha da ação (a mesma que o trigger de lotação trava):
+    contagem de vagas, lista de espera e promoção ficam serializadas."""
+    acao = db.get(AcaoSocial, acao_id, with_for_update=True)
+    if acao is None:
+        raise RecursoNaoEncontrado("Ação social não encontrada")
+    if StatusAcao(acao.status) not in _ACAO_ACEITA_INSCRICAO:
+        raise ConflitoDeEstado("Ação não aceita inscrições no status atual")
+    if acao.fim < dt.datetime.now(dt.timezone.utc):
+        raise ConflitoDeEstado("Esta ação já foi realizada")
+    return acao
+
+
+def inscrever(
+    db: Session, usuario_id: uuid.UUID, acao_id: uuid.UUID, *, lista_espera: bool = False
+) -> Inscricao:
+    """Inscreve com vaga confirmada. Ação lotada: sem `lista_espera`, recusa
+    (409 "lotada"); com `lista_espera=True`, entra na fila por ordem de
+    chegada e é promovido quando uma vaga abrir."""
     voluntario = _voluntario_do_usuario(db, usuario_id)
 
     # A UNIQUE (acao_id, voluntario_id) vale também para inscrições
@@ -84,33 +117,83 @@ def inscrever(db: Session, usuario_id: uuid.UUID, acao_id: uuid.UUID) -> Inscric
             Inscricao.voluntario_id == voluntario.id,
         )
     )
+    if existente is not None and existente.status != StatusInscricao.CANCELADA:
+        if existente.status == StatusInscricao.LISTA_ESPERA:
+            raise ConflitoDeEstado("Voluntário já está na lista de espera desta ação")
+        raise ConflitoDeEstado("Voluntário já inscrito nesta ação")
+
+    acao = _acao_aberta_para_inscricao(db, acao_id)
+    status = StatusInscricao.CONFIRMADA
+    if lista_espera and contar_confirmadas(db, acao_id) >= acao.vagas:
+        status = StatusInscricao.LISTA_ESPERA
+
     if existente is not None:
-        if existente.status != StatusInscricao.CANCELADA:
-            raise ConflitoDeEstado("Voluntário já inscrito nesta ação")
         # Reativa: status e cancelado_em mudam juntos por causa da
-        # CHECK inscricao_cancelamento_chk.
-        existente.status = StatusInscricao.CONFIRMADA
+        # CHECK inscricao_cancelamento_chk. A posição na fila recomeça.
+        existente.status = status
         existente.cancelado_em = None
         existente.motivo_cancelamento = None
+        existente.inscrito_em = dt.datetime.now(dt.timezone.utc)
         inscricao = existente
     else:
-        inscricao = Inscricao(
-            acao_id=acao_id,
-            voluntario_id=voluntario.id,
-            status=StatusInscricao.CONFIRMADA,
-        )
+        inscricao = Inscricao(acao_id=acao_id, voluntario_id=voluntario.id, status=status)
         db.add(inscricao)
 
     # flush primeiro: o trigger de lotação roda aqui, antes de gastar
     # trabalho com a notificação de uma inscrição que vai falhar.
     try:
         db.flush()
-        _avisar_gestores_inscricao(db, usuario_id, acao_id)
+        nome = _nome_do_usuario(db, usuario_id)
+        if status == StatusInscricao.LISTA_ESPERA:
+            notificacao_service.notificar_gestores(
+                db, acao, TipoNotificacao.INSCRICAO_CONFIRMADA, "Nova pessoa na lista de espera",
+                f'{nome} entrou na lista de espera de "{acao.titulo}".',
+            )
+        else:
+            notificacao_service.notificar_gestores(
+                db, acao, TipoNotificacao.INSCRICAO_CONFIRMADA, "Nova inscrição",
+                f'{nome} se inscreveu em "{acao.titulo}".',
+            )
         db.commit()
     except IntegrityError as exc:
         raise _traduzir_erro_inscricao(db, exc) from exc
     db.refresh(inscricao)
     return inscricao
+
+
+def promover_lista_espera(db: Session, acao: AcaoSocial) -> list[Inscricao]:
+    """Confirma os primeiros da fila até preencher as vagas livres.
+
+    Quem chama precisa ter travado a linha da ação (FOR UPDATE) e feito
+    flush da mudança que liberou a vaga. Não faz commit: a promoção entra
+    na mesma transação do cancelamento ou do aumento de vagas.
+    """
+    livres = acao.vagas - contar_confirmadas(db, acao.id)
+    if livres <= 0:
+        return []
+    fila = list(db.scalars(
+        select(Inscricao)
+        .where(Inscricao.acao_id == acao.id, Inscricao.status == StatusInscricao.LISTA_ESPERA)
+        .order_by(Inscricao.inscrito_em, Inscricao.id)
+        .limit(livres)
+    ).all())
+    if not fila:
+        return []
+    for inscricao in fila:
+        inscricao.status = StatusInscricao.CONFIRMADA
+    db.flush()
+    usuarios = dict(db.execute(
+        select(Voluntario.id, Voluntario.usuario_id)
+        .where(Voluntario.id.in_([i.voluntario_id for i in fila]))
+    ).all())
+    for inscricao in fila:
+        notificacao_service.notificar_usuario(
+            db, usuarios[inscricao.voluntario_id], acao, TipoNotificacao.INSCRICAO_CONFIRMADA,
+            "Sua vaga foi confirmada",
+            f'Abriu uma vaga em "{acao.titulo}" e você saiu da lista de espera. '
+            f"Te esperamos em {notificacao_service.formatar_quando(acao.inicio)}!",
+        )
+    return fila
 
 
 def cancelar(
@@ -127,20 +210,26 @@ def cancelar(
         raise RecursoNaoEncontrado("Inscrição não encontrada")
     if inscricao.status == StatusInscricao.CANCELADA:
         raise ConflitoDeEstado("Inscrição já estava cancelada")
-    acao = db.get(AcaoSocial, acao_id)
+    # FOR UPDATE: a promoção da fila disputa a mesma linha que inscrições
+    # concorrentes; sem a trava, a vaga liberada poderia ir para duas pessoas.
+    acao = db.get(AcaoSocial, acao_id, with_for_update=True)
     if acao is not None and StatusAcao(acao.status) in _ACAO_ENCERRADA:
         raise ConflitoDeEstado("Não é possível cancelar a participação numa ação encerrada")
 
+    liberou_vaga = inscricao.status == StatusInscricao.CONFIRMADA
     # status e cancelado_em precisam mudar juntos: a CHECK
     # inscricao_cancelamento_chk rejeita os dois em desacordo.
     inscricao.status = StatusInscricao.CANCELADA
     inscricao.cancelado_em = dt.datetime.now(dt.timezone.utc)
     inscricao.motivo_cancelamento = motivo
+    db.flush()
     if acao is not None:
         notificacao_service.notificar_gestores(
             db, acao, TipoNotificacao.INSCRICAO_CANCELADA, "Inscrição cancelada",
             f'{_nome_do_usuario(db, usuario_id)} cancelou a participação em "{acao.titulo}".',
         )
+        if liberou_vaga:
+            promover_lista_espera(db, acao)
     db.commit()
     db.refresh(inscricao)
     return inscricao

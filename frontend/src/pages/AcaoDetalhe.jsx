@@ -201,24 +201,54 @@ export function AcaoDetalhe() {
                 </li>
               </ul>
 
-              {ehVoluntario && ativa && !inscricao && (
+              {ehVoluntario && ativa && !inscricao && acao.vagasRestantes > 0 && (
                 <Button
                   className="w-full"
-                  disabled={acao.vagasRestantes === 0}
                   onClick={() => executar(() => api.inscrever(acao.id), "Inscrição confirmada!")}
                 >
-                  {acao.vagasRestantes === 0 ? "Vagas esgotadas" : "Quero participar"}
+                  Quero participar
                 </Button>
+              )}
+
+              {ehVoluntario && ativa && !inscricao && acao.vagasRestantes === 0 && (
+                <div className="space-y-2">
+                  <Button
+                    className="w-full"
+                    variant="outline"
+                    onClick={() =>
+                      executar(
+                        () => api.inscrever(acao.id, true),
+                        "Você entrou na lista de espera. Avisaremos se abrir uma vaga."
+                      )
+                    }
+                  >
+                    Entrar na lista de espera
+                  </Button>
+                  <p className="text-center text-xs text-muted-foreground">
+                    Vagas esgotadas
+                    {acao.emListaEspera > 0 && ` · ${acao.emListaEspera} na fila`}. Se alguém
+                    desistir, a vaga vai para o primeiro da fila.
+                  </p>
+                </div>
               )}
 
               {ehVoluntario && inscricao && (
                 <div className="space-y-3">
-                  <div className="flex items-center gap-2 rounded-md bg-accent p-3 text-sm font-medium text-accent-foreground">
-                    <Check className="h-4 w-4" /> Você está inscrito nesta ação
-                  </div>
+                  {inscricao.status === "lista_espera" ? (
+                    <div className="rounded-md border border-dashed p-3 text-sm">
+                      <p className="font-medium">Você está na lista de espera</p>
+                      <p className="text-muted-foreground">
+                        Avisaremos se abrir uma vaga para você.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2 rounded-md bg-accent p-3 text-sm font-medium text-accent-foreground">
+                      <Check className="h-4 w-4" /> Você está inscrito nesta ação
+                    </div>
+                  )}
                   {ativa && (
                     <Button variant="outline" className="w-full" onClick={() => setConfirmando(true)}>
-                      Cancelar participação
+                      {inscricao.status === "lista_espera" ? "Sair da lista de espera" : "Cancelar participação"}
                     </Button>
                   )}
                 </div>

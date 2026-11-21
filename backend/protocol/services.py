@@ -32,7 +32,7 @@ def list_actions():
     return [action.copy() for action in ACTIONS.values()]
 
 @_synchronized
-def register_action(user_id: str, role: str, action_id: int):
+def register_action(user_id: str, role: str, action_id: int, waitlist: bool = False):
     if role != "VOLUNTEER":
         raise Forbidden("Only volunteers can register")
 
@@ -49,6 +49,8 @@ def register_action(user_id: str, role: str, action_id: int):
 
     total = sum(1 for _, aid in REGISTRATIONS if aid == action_id)
     if total >= action["capacity"]:
+        if waitlist:
+            return {"action_id": action_id, "status": "WAITLISTED"}
         raise Conflict("Action is full")
 
     REGISTRATIONS.add(key)

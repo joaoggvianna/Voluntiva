@@ -37,6 +37,8 @@ jobs:
           cache: pip
           cache-dependency-path: backend/requirements-dev.txt
       - run: pip install -r requirements-dev.txt
+      # Erros reais e imports: o estilo FastAPI (Depends em default) não é cobrado.
+      - run: ruff check --select F,I,E9 app protocol tests
       # Testes unitários: sem banco (a suíte de integração se pula sozinha).
       - run: python -m pytest -q -m "not integracao"
 

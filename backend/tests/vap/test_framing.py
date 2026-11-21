@@ -1,6 +1,7 @@
 import socket
+
 from protocol.framing import read_message
-from protocol.errors import BadRequest
+
 
 def test_reads_valid_message():
     a, b = socket.socketpair()

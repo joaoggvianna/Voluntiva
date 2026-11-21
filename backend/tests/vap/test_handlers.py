@@ -1,7 +1,9 @@
 import pytest
+
+from protocol.errors import Forbidden, Unauthorized
 from protocol.handlers import handle_request
 from protocol.models import Request, Session
-from protocol.errors import Unauthorized, Forbidden, Conflict
+
 
 def req(command, payload=None):
     return Request(command=command, request_id="1", payload=payload or {})

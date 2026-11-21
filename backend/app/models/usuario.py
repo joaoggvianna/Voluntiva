@@ -4,7 +4,17 @@ from __future__ import annotations
 import datetime as dt
 import uuid
 
-from sqlalchemy import Date, DateTime, ForeignKey, SmallInteger, String, Text, Time, Uuid, func
+from sqlalchemy import (
+    Date,
+    DateTime,
+    ForeignKey,
+    SmallInteger,
+    String,
+    Text,
+    Time,
+    Uuid,
+    func,
+)
 from sqlalchemy.dialects.postgresql import ENUM as PGEnum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 

@@ -123,6 +123,12 @@ migrations, seed e os testes de `tests/integracao/`).
    Um recebe `201 CREATED` e o outro `409 CONFLICT` ("Ação social lotada"):
    quem decide é o trigger com `SELECT … FOR UPDATE` no PostgreSQL, não a
    memória do servidor. O mesmo vale misturando REST e VAP.
+
+   Repita o segundo pedido com `{"action_id": <codigo>, "waitlist": true}`:
+   ele entra na lista de espera (`WAITLISTED`). Quando o primeiro cancelar
+   (`CANCEL_REGISTRATION`), o segundo é confirmado na hora e recebe a
+   notificação "Sua vaga foi confirmada". Na interface web, o botão
+   "Entrar na lista de espera" aparece quando a ação está lotada.
 7. **Presença.** No painel da ONG, aba *Presença*, faça check-in e check-out
    de um inscrito numa ação do dia: as horas são calculadas pelo banco e
    aparecem no histórico do voluntário. O mesmo pelo VAP:
@@ -138,7 +144,5 @@ migrations, seed e os testes de `tests/integracao/`).
   gravadas, mas só chegam à interface web na próxima carga (o WebSocket
   vive no processo da API). Com várias réplicas da API, o gerenciador de
   conexões em memória precisaria de Redis ou `LISTEN/NOTIFY`.
-- **Lista de espera.** O status `lista_espera` existe no banco, mas a
-  inscrição numa ação lotada é recusada em vez de entrar na fila.
 - **Refresh token sem revogação.** Um refresh token vale até expirar;
   desativar a conta corta o acesso.

@@ -10,6 +10,8 @@ from app.models.enums import CausaSocial, StatusAcao, StatusInscricao
 
 class InscricaoCreate(BaseModel):
     acao_id: uuid.UUID
+    # Ação lotada: false -> 409; true -> entra na lista de espera.
+    lista_espera: bool = False
 
 
 class InscricaoCancel(BaseModel):

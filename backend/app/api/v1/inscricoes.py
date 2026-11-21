@@ -59,7 +59,9 @@ def inscrever(
     usuario: Usuario = Depends(exigir_tipo(TipoUsuario.VOLUNTARIO)),
 ):
     try:
-        inscricao = inscricao_service.inscrever(db, usuario.id, dados.acao_id)
+        inscricao = inscricao_service.inscrever(
+            db, usuario.id, dados.acao_id, lista_espera=dados.lista_espera
+        )
     except (ConflitoDeEstado, RecursoNaoEncontrado) as exc:
         raise _erro_http(exc)
     agendar_entrega(db, tarefas)

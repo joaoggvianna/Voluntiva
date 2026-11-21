@@ -1,6 +1,5 @@
 import socket
 import threading
-import time
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 
@@ -9,8 +8,8 @@ import pytest
 from protocol import server, services
 from protocol.client import build_request, read_response
 from protocol.config import ProtocolConfig
-from protocol.errors import BadRequest, Conflict, Unauthorized, PayloadTooLarge
-from protocol.framing import read_message, build_response
+from protocol.errors import BadRequest, Conflict, PayloadTooLarge, Unauthorized
+from protocol.framing import build_response, read_message
 from protocol.handlers import handle_request
 from protocol.models import Request, Session
 

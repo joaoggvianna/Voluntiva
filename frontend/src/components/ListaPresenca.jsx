@@ -32,13 +32,18 @@ export function ListaPresenca({ acao }) {
     )
   }
 
-  const presentes = inscritos.filter((i) => estadoPresenca(i) === "presente").length
-  const emAndamento = inscritos.filter((i) => estadoPresenca(i) === "em_andamento").length
+  const naFila = inscritos
+    .filter((i) => i.status === "lista_espera")
+    .sort((a, b) => a.inscritoEm.localeCompare(b.inscritoEm))
+  const confirmados = inscritos.filter((i) => i.status !== "lista_espera")
+  const presentes = confirmados.filter((i) => estadoPresenca(i) === "presente").length
+  const emAndamento = confirmados.filter((i) => estadoPresenca(i) === "em_andamento").length
 
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2 text-sm">
-        <Badge variant="secondary">{inscritos.length} inscritos</Badge>
+        <Badge variant="secondary">{confirmados.length} inscritos</Badge>
+        {naFila.length > 0 && <Badge variant="outline">{naFila.length} na lista de espera</Badge>}
         <Badge>{presentes} com presença completa</Badge>
         {emAndamento > 0 && <Badge variant="outline">{emAndamento} sem check-out</Badge>}
         {!liberada && (
@@ -49,7 +54,7 @@ export function ListaPresenca({ acao }) {
       </div>
 
       <ul className="divide-y rounded-lg border">
-        {inscritos.map((inscrito) => {
+        {confirmados.map((inscrito) => {
           const estado = estadoPresenca(inscrito)
           return (
             <li key={inscrito.id} className="flex flex-wrap items-center justify-between gap-3 p-4">
@@ -96,6 +101,21 @@ export function ListaPresenca({ acao }) {
           )
         })}
       </ul>
+
+      {naFila.length > 0 && (
+        <div className="space-y-2">
+          <h3 className="text-sm font-semibold">Lista de espera (por ordem de chegada)</h3>
+          <ol className="divide-y rounded-lg border">
+            {naFila.map((inscrito, posicao) => (
+              <li key={inscrito.id} className="flex items-center gap-3 p-3 text-sm">
+                <span className="w-6 text-muted-foreground">{posicao + 1}º</span>
+                <span className="font-medium">{inscrito.voluntario.nome}</span>
+                <span className="truncate text-muted-foreground">{inscrito.voluntario.email}</span>
+              </li>
+            ))}
+          </ol>
+        </div>
+      )}
     </div>
   )
 }

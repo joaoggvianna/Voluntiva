@@ -130,7 +130,14 @@ def handle_request(request, session):
         return 200, "OK", {"actions": _services.list_actions()}
 
     if cmd == "REGISTER_ACTION":
-        data = _services.register_action(session.user_id, session.role, _action_id(payload))
+        waitlist = payload.get("waitlist", False)
+        if type(waitlist) is not bool:
+            raise BadRequest("waitlist must be bool")
+        action_id = _action_id(payload)
+        if waitlist:
+            data = _services.register_action(session.user_id, session.role, action_id, waitlist=True)
+        else:
+            data = _services.register_action(session.user_id, session.role, action_id)
         return 201, "CREATED", data
 
     if cmd == "CANCEL_REGISTRATION":

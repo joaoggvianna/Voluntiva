@@ -52,16 +52,34 @@ def _params(acao: AcaoSocial, tipo: TipoNotificacao, titulo: str, mensagem: str)
 def notificar_inscritos(
     db: Session, acao: AcaoSocial, tipo: TipoNotificacao, titulo: str, mensagem: str
 ) -> list[dict]:
-    """Voluntários com inscrição confirmada na ação."""
+    """Voluntários com inscrição confirmada ou na lista de espera da ação."""
     return _gravar(db, f"""
         INSERT INTO public.notificacao (usuario_id, acao_id, tipo, titulo, mensagem)
         SELECT v.usuario_id, i.acao_id, CAST(:tipo AS public.tipo_notificacao), :titulo, :mensagem
           FROM public.inscricao i
           JOIN public.voluntario v ON v.id = i.voluntario_id
          WHERE i.acao_id = :acao_id
-           AND i.status = 'confirmada'
+           AND i.status IN ('confirmada', 'lista_espera')
         {_RETORNO}
     """, _params(acao, tipo, titulo, mensagem))
+
+
+def notificar_usuario(
+    db: Session, usuario_id: uuid.UUID, acao: AcaoSocial | None,
+    tipo: TipoNotificacao, titulo: str, mensagem: str,
+) -> list[dict]:
+    return _gravar(db, f"""
+        INSERT INTO public.notificacao (usuario_id, acao_id, tipo, titulo, mensagem)
+        VALUES (:usuario_id, CAST(:acao_id AS uuid), CAST(:tipo AS public.tipo_notificacao),
+                :titulo, :mensagem)
+        {_RETORNO}
+    """, {
+        "usuario_id": usuario_id,
+        "acao_id": acao.id if acao else None,
+        "tipo": tipo.value,
+        "titulo": titulo[:160],
+        "mensagem": mensagem[:2000],
+    })
 
 
 def notificar_gestores(

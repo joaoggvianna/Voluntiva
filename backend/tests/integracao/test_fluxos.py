@@ -251,3 +251,44 @@ def test_refresh_token(cliente, novo_voluntario):
     login = cliente.post("/api/v1/auth/login", json={"email": email, "senha": "senha-de-teste-123"}).json()
     novo = cliente.post("/api/v1/auth/refresh", json={"refresh_token": login["refresh_token"]})
     assert novo.status_code == 200 and novo.json()["usuario"]["email"] == email
+
+
+# ---------------------------------------------------------------------
+# Lista de espera
+# ---------------------------------------------------------------------
+
+def test_lista_de_espera_promove_quando_abre_vaga(cliente, nova_ong, novo_voluntario):
+    ong_id, unidade_id, cab_ong = nova_ong()
+    acao = _criar_acao(cliente, cab_ong, ong_id, unidade_id, vagas=1)
+    _, cab_primeira = novo_voluntario()
+    _, cab_segunda = novo_voluntario()
+    _, cab_terceira = novo_voluntario()
+
+    assert cliente.post("/api/v1/inscricoes", headers=cab_primeira,
+                        json={"acao_id": acao["id"]}).json()["status"] == "confirmada"
+    # Sem pedir a fila, ação lotada continua recusando.
+    assert cliente.post("/api/v1/inscricoes", headers=cab_segunda,
+                        json={"acao_id": acao["id"]}).status_code == 409
+    for cab in (cab_segunda, cab_terceira):
+        resposta = cliente.post("/api/v1/inscricoes", headers=cab,
+                                json={"acao_id": acao["id"], "lista_espera": True})
+        assert resposta.status_code == 201 and resposta.json()["status"] == "lista_espera"
+    assert cliente.get(f"/api/v1/acoes/{acao['id']}").json()["em_lista_espera"] == 2
+
+    # A confirmada desiste: a segunda (primeira da fila) é promovida e avisada.
+    assert cliente.request("DELETE", f"/api/v1/inscricoes/{acao['id']}",
+                           headers=cab_primeira).status_code == 200
+    minhas = cliente.get("/api/v1/inscricoes/minhas", headers=cab_segunda).json()
+    assert minhas[0]["status"] == "confirmada"
+    avisos = cliente.get("/api/v1/notificacoes", headers=cab_segunda).json()
+    assert any(n["titulo"] == "Sua vaga foi confirmada" for n in avisos)
+    terceira = cliente.get("/api/v1/inscricoes/minhas", headers=cab_terceira).json()
+    assert terceira[0]["status"] == "lista_espera"
+
+    # A ONG aumenta as vagas: a terceira também entra.
+    assert cliente.patch(f"/api/v1/acoes/{acao['id']}", headers=cab_ong,
+                         json={"vagas": 2}).status_code == 200
+    terceira = cliente.get("/api/v1/inscricoes/minhas", headers=cab_terceira).json()
+    assert terceira[0]["status"] == "confirmada"
+    detalhe = cliente.get(f"/api/v1/acoes/{acao['id']}").json()
+    assert detalhe["vagas_ocupadas"] == 2 and detalhe["em_lista_espera"] == 0

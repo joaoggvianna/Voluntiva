@@ -32,6 +32,7 @@ from app.models import (
     Inscricao,
     OngMembro,
     StatusAcao,
+    StatusInscricao,
     TipoUsuario,
     Unidade,
     Usuario,
@@ -99,7 +100,7 @@ def list_actions() -> list[dict]:
         db.close()
 
 
-def register_action(user_id: str, role: str, action_id: int) -> dict:
+def register_action(user_id: str, role: str, action_id: int, *, waitlist: bool = False) -> dict:
     if role != "VOLUNTEER":
         raise Forbidden("Only volunteers can register")
 
@@ -107,10 +108,13 @@ def register_action(user_id: str, role: str, action_id: int) -> dict:
     try:
         acao = _acao_por_codigo(db, action_id)
         try:
-            inscricao_service.inscrever(db, uuid.UUID(user_id), acao.id)
+            inscricao = inscricao_service.inscrever(
+                db, uuid.UUID(user_id), acao.id, lista_espera=waitlist
+            )
         except VoluntivaError as exc:
             raise _traduzir(exc) from exc
-        return {"action_id": action_id, "status": "REGISTERED"}
+        em_espera = inscricao.status == StatusInscricao.LISTA_ESPERA
+        return {"action_id": action_id, "status": "WAITLISTED" if em_espera else "REGISTERED"}
     finally:
         db.close()
 

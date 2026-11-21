@@ -90,9 +90,15 @@ Payload:
 {"action_id":15}
 ```
 
+Com `{"action_id":15,"waitlist":true}`, uma ação lotada coloca o
+voluntário na lista de espera em vez de responder `409`; a resposta traz
+`"status":"WAITLISTED"`. Sem `waitlist`, a resposta de sucesso é
+`"status":"REGISTERED"`.
+
 ### CANCEL_REGISTRATION
 
-Exige `VOLUNTEER`.
+Exige `VOLUNTEER`. Se a inscrição cancelada era confirmada, o primeiro da
+lista de espera é confirmado na mesma transação e notificado.
 
 Payload:
 

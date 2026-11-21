@@ -230,8 +230,11 @@ export const api = {
   /* ---------------- Inscrições e presença ---------------- */
   minhasInscricoes: () => requisicao<InscricaoComAcao[]>('/inscricoes/minhas'),
 
-  inscrever: (acaoId: string) =>
-    requisicao<Inscricao>('/inscricoes', { method: 'POST', ...json({ acao_id: acaoId }) }),
+  /** Com `listaEspera`, ação lotada coloca o voluntário na fila em vez de recusar. */
+  inscrever: (acaoId: string, listaEspera = false) =>
+    requisicao<Inscricao>('/inscricoes', {
+      method: 'POST', ...json({ acao_id: acaoId, lista_espera: listaEspera }),
+    }),
 
   cancelarInscricao: (acaoId: string, motivo?: string) =>
     requisicao<Inscricao>(`/inscricoes/${id(acaoId)}`, {

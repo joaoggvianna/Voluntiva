@@ -233,7 +233,8 @@ os mocks) ou `python -m protocol.client --token <JWT> LIST_ACTIONS`
   ONGs, unidades e vínculos com papéis (proprietário, gestor, operador);
   ações com filtros, paginação (`X-Total-Count`), rascunho visível só para
   a ONG e regras de edição (transições de status, mínimo de vagas);
-  inscrição, cancelamento e disputa da última vaga no banco; check-in e
+  inscrição, cancelamento, lista de espera com promoção automática e
+  disputa da última vaga no banco; check-in e
   check-out com horas calculadas pelo banco; perfil do voluntário
   (habilidades e disponibilidade), histórico e filtro de compatibilidade
   (RF004); notificações gravadas na mesma transação da mudança e entregues
@@ -251,5 +252,5 @@ os mocks) ou `python -m protocol.client --token <JWT> LIST_ACTIONS`
 **Limitações conhecidas** (detalhes em
 [docs/GUIA_EXECUCAO.md](docs/GUIA_EXECUCAO.md#5-limitações-conhecidas)):
 tokens em `localStorage` em vez de cookie `httpOnly`; cliente VAP de
-desenvolvimento não verifica o certificado TLS; lista de espera não
-implementada; refresh token sem revogação.
+desenvolvimento não verifica o certificado TLS; refresh token sem
+revogação.

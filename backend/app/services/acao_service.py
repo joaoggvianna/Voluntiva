@@ -25,7 +25,7 @@ from app.models import (
     TipoNotificacao,
 )
 from app.schemas.acao import AcaoCreate, AcaoUpdate
-from app.services import notificacao_service
+from app.services import inscricao_service, notificacao_service
 from app.services.compatibilidade import condicao_compativel
 
 # Máquina de estados da ação. Mudar para o mesmo status é sempre permitido
@@ -307,6 +307,7 @@ def atualizar(db: Session, acao_id: uuid.UUID, dados: AcaoUpdate) -> AcaoSocial:
                 f"já há {confirmadas} inscrições confirmadas"
             )
 
+    antes_vagas = acao.vagas
     antes = {
         "titulo": acao.titulo, "inicio": acao.inicio, "fim": acao.fim,
         "local_texto": acao.local_texto, "unidade_id": acao.unidade_id,
@@ -347,6 +348,8 @@ def atualizar(db: Session, acao_id: uuid.UUID, dados: AcaoUpdate) -> AcaoSocial:
     else:
         if status_atual == StatusAcao.RASCUNHO and novo_status == StatusAcao.PUBLICADA:
             notificacao_service.notificar_compativeis(db, acao, _nome_ong(db, acao.ong_id))
+        if mudancas.get("vagas") is not None and mudancas["vagas"] > antes_vagas:
+            inscricao_service.promover_lista_espera(db, acao)
         alteracoes = _descrever_mudancas(antes, acao)
         if alteracoes:
             notificacao_service.notificar_inscritos(

@@ -64,7 +64,7 @@ function AbaInscricoes({ inscricoes }) {
   return (
     <>
       <ul className="space-y-3">
-        {vigentes.map(({ id, acao }) => (
+        {vigentes.map(({ id, acao, status }) => (
           <li key={id}>
             <Card>
               <CardContent className="flex flex-wrap items-center justify-between gap-4 pt-6">
@@ -73,6 +73,9 @@ function AbaInscricoes({ inscricoes }) {
                     <SeloCausa causa={acao.causa} />
                     {acao.situacao === "cancelada" && (
                       <Badge variant="destructive">Cancelada pela ONG</Badge>
+                    )}
+                    {status === "lista_espera" && acao.situacao !== "cancelada" && (
+                      <Badge variant="outline">Lista de espera</Badge>
                     )}
                   </div>
                   <Link to={`/acoes/${acao.id}`} className="block font-semibold hover:text-primary">
@@ -274,7 +277,7 @@ export function PainelVoluntario() {
   }, [versao])
   const inscricoes = dados?.inscricoes ?? []
   const resumo = dados?.resumo ?? { itens: [], total: 0, presentes: 0, ausentes: 0, totalHoras: 0 }
-  const proximas = inscricoes.filter((i) => i.acao.situacao === "ativa")
+  const proximas = inscricoes.filter((i) => i.acao.situacao === "ativa" && i.status === "confirmada")
 
   return (
     <div className="container mx-auto space-y-8 px-4 py-10">

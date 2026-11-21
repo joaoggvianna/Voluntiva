@@ -7,7 +7,7 @@ import uuid
 
 from .config import CONFIG
 from .errors import BadRequest, Unauthorized, VAPError
-from .framing import read_message, build_response
+from .framing import build_response, read_message
 from .handlers import handle_request
 from .models import Session
 
