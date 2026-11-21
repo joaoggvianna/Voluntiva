@@ -27,20 +27,18 @@ Responsável pela definição de requisitos, casos de uso, arquitetura da aplica
 
 A aplicação utilizará uma arquitetura cliente-servidor. A comunicação entre clientes e servidor será feita por meio de um protocolo de aplicação próprio sobre TCP, com mensagens para operações como autenticação, consulta de eventos, inscrições, atualizações e notificações.
 
-Exemplos de comandos previstos:
+Comandos implementados (especificação completa em [docs/VAP.md](docs/VAP.md)):
 
 ```text
-LOGIN
-LIST_EVENTS
-JOIN_EVENT
-LEAVE_EVENT
-CREATE_EVENT
-UPDATE_EVENT
-CHECK_IN
-CHECK_OUT
 PING
-PONG
+AUTH
+LIST_ACTIONS
+REGISTER_ACTION
+CANCEL_REGISTRATION
 ```
+
+Previstos: criação e edição de ação, listagem de notificações e, a
+decidir, check-in/check-out.
 
 ### Laboratório de Banco de Dados
 
@@ -183,6 +181,16 @@ As migrations em `db/migrations/` são aplicadas **em ordem**, no SQL
 Editor do Supabase ou num Postgres local. O schema não é gerado pelo ORM:
 nunca rode `Base.metadata.create_all()`.
 
+A `0003` cria o papel `voluntiva_app` (só DML) e as policies de RLS que
+liberam as tabelas para ele. Depois de aplicá-la, defina a senha uma vez
+e aponte o `DATABASE_URL` do backend para esse usuário:
+
+```sql
+alter role voluntiva_app with login password '<gerar-senha-forte>';
+```
+
+No Supabase, pelo pooler, o usuário fica `voluntiva_app.<project_ref>`.
+
 ## Protocolo VAP
 
 O protocolo próprio da aplicação, sobre TCP, está especificado em
@@ -211,11 +219,18 @@ real): registro, login, listagem de ações, inscrição, cancelamento,
 reinscrição, disputa da última vaga, check-in/check-out com cálculo de
 horas.
 
-**Pendente** (marcado com `TODO(equipe)` no código):
+**Implementado, ainda sem teste contra banco real:** autorização por
+vínculo de ONG/unidade (`ong_membro`) na criação/edição de ações e na
+presença; filtro de ações compatíveis com o voluntário
+(`GET /api/v1/acoes/compativeis`, RF004); regras de edição de ação
+(transição de status e mínimo de vagas); papel `voluntiva_app` com RLS.
+O checklist manual está em [docs/VALIDACAO_AUTORIZACAO.md](docs/VALIDACAO_AUTORIZACAO.md).
 
-- `CREATE_EVENT` / `UPDATE_EVENT` e `LIST_NOTIFICATIONS` no VAP;
+**Pendente:**
+
+- criação/edição de ação e `LIST_NOTIFICATIONS` no VAP;
 - decisão sobre `CHECK_IN`/`CHECK_OUT` entrarem ou não na spec do VAP;
-- filtro por habilidade e disponibilidade do voluntário (RF004);
+- cadastro de ONG e unidades, perfil do voluntário, histórico e notificações na API;
 - ligar as telas do frontend à API real (hoje usam mock em `localStorage`);
 - `docker-compose.yml` e guia de setup;
 - TLS no servidor VAP e cookie `httpOnly` no lugar do `localStorage` para o JWT.

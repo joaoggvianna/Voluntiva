@@ -59,7 +59,7 @@ Para restaurar os dados iniciais, limpe os dados do site no navegador.
 
 ## Divergências registradas
 
-Dois pontos em que o frontend não bate com o que o `CLAUDE.md` descreve.
+Dois pontos em que o frontend não bate com a stack e a identidade visual planejadas.
 Nenhum dos dois é acidente de integração — os dois são decisão pendente
 da equipe:
 

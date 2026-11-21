@@ -25,7 +25,10 @@ COPY . .
 RUN useradd --create-home --uid 1000 voluntiva && chown -R voluntiva:voluntiva /app
 USER voluntiva
 
-EXPOSE 8000 9009
+# 8000 = API REST/WebSocket; 5050 = servidor VAP (docs/VAP.md).
+# Para o VAP aceitar conexões de fora do container, rode-o com
+# VAP_HOST=0.0.0.0 (o padrão 127.0.0.1 só escuta dentro do container).
+EXPOSE 8000 5050
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
     CMD curl -fsS http://localhost:8000/health || exit 1

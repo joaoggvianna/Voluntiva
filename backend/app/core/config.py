@@ -21,6 +21,9 @@ class Settings(BaseSettings):
     # ---- Ambiente ----
     app_env: Literal["development", "test", "production"] = "development"
     debug: bool = False
+    # Fuso usado para interpretar datas sem fuso e para o filtro RF004
+    # (dia da semana e horário da ação vs. disponibilidade do voluntário).
+    fuso_horario: str = "America/Sao_Paulo"
 
     # ---- Banco ----
     database_url: str
@@ -43,7 +46,7 @@ class Settings(BaseSettings):
 
     # ---- Protocolo VAP ----
     vap_host: str = "0.0.0.0"
-    vap_port: int = 9009
+    vap_port: int = 5050
     vap_max_message_bytes: int = 65536
     vap_idle_timeout: int = 120
     vap_max_connections: int = 100

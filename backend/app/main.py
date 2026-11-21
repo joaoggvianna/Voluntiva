@@ -62,6 +62,8 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type"],
+    # Total para paginação de GET /acoes; sem isto o navegador o esconde.
+    expose_headers=["X-Total-Count"],
 )
 
 

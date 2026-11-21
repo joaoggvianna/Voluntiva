@@ -1,4 +1,4 @@
-"""Regras de autenticação, compartilhadas entre a API REST e o comando LOGIN do VAP."""
+"""Regras de autenticação da API REST. O VAP reaproveita o JWT emitido aqui no comando AUTH."""
 from datetime import datetime, timezone
 
 from sqlalchemy import func, select

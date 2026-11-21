@@ -73,12 +73,35 @@ export const api = {
 
   eu: () => requisicao<Usuario>('/auth/eu'),
 
-  listarAcoes: (params: { status?: string; limite?: number } = {}) => {
+  listarAcoes: (params: { status?: string; limite?: number; ong_id?: string } = {}) => {
     const qs = new URLSearchParams(
       Object.entries(params).filter(([, v]) => v != null).map(([k, v]) => [k, String(v)]),
     )
     return requisicao<AcaoComVagas[]>(`/acoes?${qs}`)
   },
+
+  obterAcao: (id: string) =>
+    requisicao<import('@/types').AcaoComVagas>(`/acoes/${encodeURIComponent(id)}`),
+
+  minhasInscricoes: () => requisicao<Inscricao[]>('/inscricoes/minhas'),
+
+  minhasOngs: () => requisicao<Array<{
+    id: string; nome: string;
+    unidades: Array<{ id: string; nome: string; cidade: string; uf: string }>
+  }>>('/ongs/minhas'),
+
+  criarAcao: (dados: {
+    ong_id: string; unidade_id: string | null; titulo: string;
+    descricao: string; local_texto: string; inicio: string; fim: string;
+    vagas: number; habilidades: string[]
+  }) => requisicao<{ id: string }>('/acoes', {
+    method: 'POST', body: JSON.stringify(dados),
+  }),
+
+  atualizarAcao: (id: string, dados: { status: string }) =>
+    requisicao<{ id: string }>(`/acoes/${encodeURIComponent(id)}`, {
+      method: 'PATCH', body: JSON.stringify(dados),
+    }),
 
   inscrever: (acaoId: string) =>
     requisicao<Inscricao>('/inscricoes', {

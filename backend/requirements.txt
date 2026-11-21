@@ -23,3 +23,7 @@ argon2-cffi==25.1.0
 
 # ---- WebSocket (notificações em tempo real) ----
 websockets==17.1
+
+# ---- Fuso horário ----
+# Base de fusos para zoneinfo no Windows (no Linux vem do sistema).
+tzdata==2025.2

@@ -1,4 +1,4 @@
-"""Inscrições e presença (JOIN_EVENT / LEAVE_EVENT / CHECK_IN / CHECK_OUT).
+"""Inscrições e presença (VAP REGISTER_ACTION / CANCEL_REGISTRATION; check-in/out via REST).
 
 A lotação NÃO é validada aqui. O trigger trg_inscricao_valida faz
 SELECT ... FOR UPDATE na ação e é a única barreira correta sob

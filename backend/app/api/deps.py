@@ -34,6 +34,21 @@ def usuario_atual(
     return usuario
 
 
+_bearer_opcional = HTTPBearer(auto_error=False)
+
+
+def usuario_opcional(
+    credencial: HTTPAuthorizationCredentials | None = Depends(_bearer_opcional),
+    db: Session = Depends(get_db),
+) -> Usuario | None:
+    """Para rotas públicas que mostram mais a quem está logado (ex.: a ONG
+    vê os próprios rascunhos). Sem token -> None; token inválido -> 401,
+    para o cliente saber que a sessão expirou em vez de ver dados públicos."""
+    if credencial is None:
+        return None
+    return usuario_atual(credencial, db)
+
+
 def exigir_tipo(*tipos: TipoUsuario):
     """Fábrica de dependência que restringe a rota a certos tipos de usuário."""
     def _verificar(usuario: Usuario = Depends(usuario_atual)) -> Usuario:
