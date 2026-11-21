@@ -18,14 +18,26 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { useApp } from "@/contexto/AppContexto"
-import { UFS } from "@/data/ongs"
-import { atualizarUnidade, criarUnidade } from "@/lib/servico"
+import { somenteDigitos, unidadeParaApi } from "@/lib/adaptadores"
+import { api } from "@/lib/api"
+import { UFS } from "@/lib/dominio"
+
+function validar(valores) {
+  if (valores.nome.trim().length < 3) return "Informe o nome da unidade."
+  if (valores.cidade.trim().length < 2) return "Informe a cidade."
+  if (!valores.uf) return "Selecione o estado."
+  const cep = somenteDigitos(valores.cep)
+  if (cep && cep.length !== 8) return "O CEP deve ter 8 dígitos."
+  return null
+}
 
 export function FormularioUnidade({ aberto, aoFechar, unidade, ongId }) {
   const { executar } = useApp()
+  const [erro, setErro] = useState(null)
+  const [enviando, setEnviando] = useState(false)
   const [valores, setValores] = useState(() => ({
     nome: unidade?.nome ?? "",
-    endereco: unidade?.endereco ?? "",
+    endereco: unidade?.logradouro ?? "",
     cidade: unidade?.cidade ?? "",
     uf: unidade?.uf ?? "",
     cep: unidade?.cep ?? "",
@@ -35,15 +47,21 @@ export function FormularioUnidade({ aberto, aoFechar, unidade, ongId }) {
     setValores((atual) => ({ ...atual, [campo]: valor }))
   }
 
-  function enviar(evento) {
+  async function enviar(evento) {
     evento.preventDefault()
-    const resposta = executar(
+    const problema = validar(valores)
+    setErro(problema)
+    if (problema) return
+    const corpo = unidadeParaApi(valores)
+    setEnviando(true)
+    const resposta = await executar(
       () =>
         unidade
-          ? atualizarUnidade(unidade.id, ongId, valores)
-          : criarUnidade(ongId, valores),
+          ? api.atualizarUnidade(ongId, unidade.id, corpo)
+          : api.criarUnidade(ongId, corpo),
       unidade ? "Unidade atualizada." : "Unidade cadastrada."
     )
+    setEnviando(false)
     if (resposta.ok) aoFechar()
   }
 
@@ -57,7 +75,7 @@ export function FormularioUnidade({ aberto, aoFechar, unidade, ongId }) {
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={enviar} className="space-y-4">
+        <form onSubmit={enviar} className="space-y-4" noValidate>
           <div className="space-y-2">
             <Label htmlFor="unidade-nome">Nome da unidade</Label>
             <Input
@@ -68,7 +86,7 @@ export function FormularioUnidade({ aberto, aoFechar, unidade, ongId }) {
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="unidade-endereco">Endereço</Label>
+            <Label htmlFor="unidade-endereco">Endereço (opcional)</Label>
             <Input
               id="unidade-endereco"
               value={valores.endereco}
@@ -110,11 +128,18 @@ export function FormularioUnidade({ aberto, aoFechar, unidade, ongId }) {
               />
             </div>
           </div>
+          {erro && (
+            <p className="text-sm text-destructive" role="alert">
+              {erro}
+            </p>
+          )}
           <DialogFooter className="gap-2 sm:gap-0">
             <Button type="button" variant="outline" onClick={aoFechar}>
               Cancelar
             </Button>
-            <Button type="submit">{unidade ? "Salvar" : "Cadastrar unidade"}</Button>
+            <Button type="submit" disabled={enviando}>
+              {enviando ? "Salvando..." : unidade ? "Salvar" : "Cadastrar unidade"}
+            </Button>
           </DialogFooter>
         </form>
       </DialogContent>

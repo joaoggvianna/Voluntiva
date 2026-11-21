@@ -5,33 +5,47 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { toast } from "sonner"
 import { useApp } from "@/contexto/AppContexto"
-import { entrar } from "@/lib/servico"
+
+// Contas criadas pelo seed de desenvolvimento (db/seed/seed_dev.sql).
+// O cartão só aparece em `npm run dev`, nunca no build de produção.
+const SENHA_DE_TESTE = "voluntiva123"
+const CONTAS_DE_TESTE = import.meta.env.DEV
 
 export function Entrar() {
-  const { usuario, executar } = useApp()
+  const { usuario, entrar } = useApp()
   const navegar = useNavigate()
   const local = useLocation()
   const [email, setEmail] = useState("")
   const [senha, setSenha] = useState("")
   const [erros, setErros] = useState({})
+  const [enviando, setEnviando] = useState(false)
 
-  if (usuario) return <Navigate to="/painel" replace />
+  if (usuario) return <Navigate to={local.state?.de ?? "/painel"} replace />
 
-  function enviar(evento) {
+  async function enviar(evento) {
     evento.preventDefault()
     const novosErros = {}
     if (!email.trim()) novosErros.email = "Informe o seu e-mail."
     if (!senha) novosErros.senha = "Informe a sua senha."
     setErros(novosErros)
     if (Object.keys(novosErros).length > 0) return
-    const resposta = executar(() => entrar(email, senha), "Bem-vindo de volta!")
-    if (resposta.ok) navegar(local.state?.de ?? "/painel", { replace: true })
+    setEnviando(true)
+    try {
+      await entrar(email.trim(), senha)
+      toast.success("Bem-vindo de volta!")
+      navegar(local.state?.de ?? "/painel", { replace: true })
+    } catch (erro) {
+      toast.error(erro.message)
+    } finally {
+      setEnviando(false)
+    }
   }
 
   function usarConta(emailConta) {
     setEmail(emailConta)
-    setSenha("123456")
+    setSenha(SENHA_DE_TESTE)
     setErros({})
   }
 
@@ -69,8 +83,8 @@ export function Entrar() {
               />
               {erros.senha && <p className="text-sm text-destructive">{erros.senha}</p>}
             </div>
-            <Button type="submit" className="w-full">
-              Entrar
+            <Button type="submit" className="w-full" disabled={enviando}>
+              {enviando ? "Entrando..." : "Entrar"}
             </Button>
           </form>
           <p className="mt-4 text-center text-sm text-muted-foreground">
@@ -82,22 +96,24 @@ export function Entrar() {
         </CardContent>
       </Card>
 
+      {CONTAS_DE_TESTE && (
       <Card className="border-dashed">
         <CardContent className="space-y-3 pt-6">
           <p className="text-sm font-medium">Contas de teste</p>
           <p className="text-xs text-muted-foreground">
-            Preencha o formulário com uma conta de exemplo (senha 123456).
+            Contas do seed de desenvolvimento (senha {SENHA_DE_TESTE}). Só aparecem em modo dev.
           </p>
           <div className="grid gap-2 sm:grid-cols-2">
-            <Button variant="outline" size="sm" onClick={() => usarConta("voluntario@teste.com")}>
+            <Button variant="outline" size="sm" onClick={() => usarConta("voluntario@voluntiva.dev")}>
               <User /> Voluntário
             </Button>
-            <Button variant="outline" size="sm" onClick={() => usarConta("ong@teste.com")}>
+            <Button variant="outline" size="sm" onClick={() => usarConta("ong@voluntiva.dev")}>
               <Building2 /> ONG
             </Button>
           </div>
         </CardContent>
       </Card>
+      )}
     </div>
   )
 }

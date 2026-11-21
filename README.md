@@ -137,7 +137,8 @@ Exemplo de variáveis CSS:
 │   ├── protocol/       # servidor do protocolo VAP sobre TCP puro
 │   └── tests/          # pytest (app/ e protocol/)
 ├── db/migrations/      # fonte da verdade do schema, em SQL numerado
-├── docs/               # VAP.md e SECURITY.md — especificação do protocolo
+├── db/dev/             # só desenvolvimento: senha local do papel da app e seed
+├── docs/               # VAP.md, SECURITY.md e GUIA_EXECUCAO.md
 └── frontend/           # React + Vite + Tailwind (ver frontend/README.md)
 ```
 
@@ -148,6 +149,16 @@ próprio formato de erro.
 
 ## Como executar
 
+O caminho mais curto é o Docker Compose, que sobe banco (com migrations e
+contas de teste), API, servidor VAP e interface web:
+
+```bash
+docker compose up --build    # web em http://localhost:8080
+```
+
+O passo a passo completo, as contas do seed e o roteiro de demonstração
+estão em [docs/GUIA_EXECUCAO.md](docs/GUIA_EXECUCAO.md).
+
 ### Backend
 
 ```bash
@@ -157,7 +168,7 @@ cp ../.env.example ../.env    # editar DATABASE_URL e JWT_SECRET
 
 .venv/Scripts/python -m uvicorn app.main:app --reload --port 8000   # API REST
 .venv/Scripts/python -m protocol                                    # servidor VAP (porta 5050)
-.venv/Scripts/python -m pytest                                      # testes (não exigem banco)
+.venv/Scripts/python -m pytest -m "not integracao"                  # testes unitários (sem banco)
 ```
 
 Em Linux/macOS troque `.venv/Scripts/` por `.venv/bin/`.
@@ -210,27 +221,35 @@ REST (`POST /api/v1/auth/login`), recebe o JWT e o envia no comando
 confirmar que a conta continua ativa.
 
 Para experimentar, suba o servidor e, em outro terminal com o mesmo
-ambiente virtual, execute `python -m protocol.client`.
+ambiente virtual, execute `python -m protocol.client` (demonstração com
+os mocks) ou `python -m protocol.client --token <JWT> LIST_ACTIONS`
+(contra o servidor real).
 
 ## Estado do projeto
 
-**Funcionando e testado ponta a ponta** (REST + VAP contra Postgres
-real): registro, login, listagem de ações, inscrição, cancelamento,
-reinscrição, disputa da última vaga, check-in/check-out com cálculo de
-horas.
+**Implementado:**
 
-**Implementado, ainda sem teste contra banco real:** autorização por
-vínculo de ONG/unidade (`ong_membro`) na criação/edição de ações e na
-presença; filtro de ações compatíveis com o voluntário
-(`GET /api/v1/acoes/compativeis`, RF004); regras de edição de ação
-(transição de status e mínimo de vagas); papel `voluntiva_app` com RLS.
-O checklist manual está em [docs/VALIDACAO_AUTORIZACAO.md](docs/VALIDACAO_AUTORIZACAO.md).
+- API REST: cadastro e login (com refresh token) de voluntários e ONGs;
+  ONGs, unidades e vínculos com papéis (proprietário, gestor, operador);
+  ações com filtros, paginação (`X-Total-Count`), rascunho visível só para
+  a ONG e regras de edição (transições de status, mínimo de vagas);
+  inscrição, cancelamento e disputa da última vaga no banco; check-in e
+  check-out com horas calculadas pelo banco; perfil do voluntário
+  (habilidades e disponibilidade), histórico e filtro de compatibilidade
+  (RF004); notificações gravadas na mesma transação da mudança e entregues
+  em tempo real pelo WebSocket; estatísticas da página inicial.
+- Interface web completa ligada à API (o mock em `localStorage` foi
+  removido).
+- Protocolo VAP: `PING`, `AUTH`, `LIST_ACTIONS`, `REGISTER_ACTION`,
+  `CANCEL_REGISTRATION`, `CREATE_ACTION`, `UPDATE_ACTION`, `CHECK_IN`,
+  `CHECK_OUT` e `LIST_NOTIFICATIONS`, sobre os mesmos services da API.
+- Banco: papel `voluntiva_app` com RLS (migration 0003) e causa social de
+  ONGs e ações (migration 0004).
+- Entrega: Docker Compose, seed de desenvolvimento, CI com suíte de
+  integração contra PostgreSQL.
 
-**Pendente:**
-
-- criação/edição de ação e `LIST_NOTIFICATIONS` no VAP;
-- decisão sobre `CHECK_IN`/`CHECK_OUT` entrarem ou não na spec do VAP;
-- cadastro de ONG e unidades, perfil do voluntário, histórico e notificações na API;
-- ligar as telas do frontend à API real (hoje usam mock em `localStorage`);
-- `docker-compose.yml` e guia de setup;
-- TLS no servidor VAP e cookie `httpOnly` no lugar do `localStorage` para o JWT.
+**Limitações conhecidas** (detalhes em
+[docs/GUIA_EXECUCAO.md](docs/GUIA_EXECUCAO.md#5-limitações-conhecidas)):
+tokens em `localStorage` em vez de cookie `httpOnly`; cliente VAP de
+desenvolvimento não verifica o certificado TLS; lista de espera não
+implementada; refresh token sem revogação.

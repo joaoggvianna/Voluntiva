@@ -2,7 +2,15 @@
 import datetime as dt
 import uuid
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Response, status
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Depends,
+    HTTPException,
+    Query,
+    Response,
+    status,
+)
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -15,7 +23,7 @@ from app.api.autorizacao import (
 from app.api.deps import exigir_tipo, usuario_opcional
 from app.core.exceptions import ConflitoDeEstado, DadosInvalidos, RecursoNaoEncontrado
 from app.db.session import get_db
-from app.models import StatusAcao, TipoUsuario, Usuario, Voluntario
+from app.models import CausaSocial, StatusAcao, TipoUsuario, Usuario, Voluntario
 from app.realtime.entrega import agendar_entrega
 from app.schemas.acao import AcaoComVagas, AcaoCreate, AcaoResponse, AcaoUpdate
 from app.schemas.inscricao import InscritoResponse
@@ -50,6 +58,7 @@ def listar(
     ong_id: uuid.UUID | None = None,
     busca: str | None = Query(default=None, max_length=100),
     uf: str | None = Query(default=None, pattern=r"^[A-Z]{2}$"),
+    causa: CausaSocial | None = None,
     de: dt.date | None = None,
     ate: dt.date | None = None,
     com_vagas: bool = False,
@@ -71,7 +80,7 @@ def listar(
                 "Rascunhos só podem ser listados por membros da ONG (informe ong_id)",
             )
     itens, total = acao_service.buscar(
-        db, status=filtro, ong_id=ong_id, busca=busca, uf=uf, de=de, ate=ate,
+        db, status=filtro, ong_id=ong_id, busca=busca, uf=uf, causa=causa, de=de, ate=ate,
         com_vagas=com_vagas, futuras=futuras, limite=limite, offset=offset,
     )
     response.headers["X-Total-Count"] = str(total)

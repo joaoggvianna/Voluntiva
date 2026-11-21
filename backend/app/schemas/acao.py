@@ -7,7 +7,7 @@ from zoneinfo import ZoneInfo
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.core.config import settings
-from app.models.enums import StatusAcao
+from app.models.enums import CausaSocial, StatusAcao
 
 
 def _com_fuso(valor: dt.datetime | None) -> dt.datetime | None:
@@ -36,6 +36,8 @@ class AcaoCreate(BaseModel):
     habilidades_obrigatorias: list[uuid.UUID] = Field(default_factory=list)
     # Criar já publicada evita o "rascunho órfão" de criar e depois publicar.
     status: Literal[StatusAcao.RASCUNHO, StatusAcao.PUBLICADA] = StatusAcao.RASCUNHO
+    # Sem causa, a ação herda a causa da ONG.
+    causa: CausaSocial | None = None
 
     _fuso = field_validator("inicio", "fim")(_com_fuso)
 
@@ -59,8 +61,12 @@ class AcaoUpdate(BaseModel):
     fim: dt.datetime | None = None
     vagas: int | None = Field(default=None, ge=1, le=100_000)
     status: StatusAcao | None = None
+    causa: CausaSocial | None = None
     # Enviar null explicitamente desvincula a ação da unidade.
     unidade_id: uuid.UUID | None = None
+    # Quando enviada, substitui a lista inteira de habilidades da ação.
+    habilidades: list[uuid.UUID] | None = None
+    habilidades_obrigatorias: list[uuid.UUID] | None = None
 
     _fuso = field_validator("inicio", "fim")(_com_fuso)
 
@@ -78,6 +84,7 @@ class AcaoResponse(BaseModel):
     fim: dt.datetime
     vagas: int
     status: StatusAcao
+    causa: CausaSocial | None
 
 
 class HabilidadeDaAcao(BaseModel):
@@ -105,6 +112,7 @@ class AcaoComVagas(BaseModel):
     inicio: dt.datetime
     fim: dt.datetime
     status: StatusAcao
+    causa: CausaSocial | None
     vagas: int
     vagas_ocupadas: int
     vagas_disponiveis: int

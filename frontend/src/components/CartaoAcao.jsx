@@ -5,11 +5,13 @@ import { Card, CardContent } from "@/components/ui/card"
 import { SeloCausa } from "@/components/SeloCausa"
 import { useApp } from "@/contexto/AppContexto"
 import { calcularCompatibilidade, rotuloCompatibilidade } from "@/lib/compatibilidade"
+import { localResumo } from "@/lib/adaptadores"
 import { formatarDataCurta } from "@/lib/utils"
 
 function SituacaoAcao({ acao }) {
   if (acao.situacao === "cancelada") return <Badge variant="destructive">Cancelada</Badge>
   if (acao.situacao === "concluida") return <Badge variant="secondary">Encerrada</Badge>
+  if (acao.situacao === "rascunho") return <Badge variant="outline">Rascunho</Badge>
   if (acao.vagasRestantes === 0) return <Badge variant="outline">Lotada</Badge>
   return null
 }
@@ -51,7 +53,7 @@ export function CartaoAcao({ acao }) {
             <ul className="mt-auto space-y-1 text-xs text-muted-foreground">
               <li className="flex items-center gap-1.5">
                 <MapPin className="h-3.5 w-3.5 shrink-0" />
-                {acao.unidade?.cidade}/{acao.unidade?.uf}
+                {localResumo(acao)}
               </li>
               <li className="flex items-center gap-1.5">
                 <Clock className="h-3.5 w-3.5 shrink-0" />

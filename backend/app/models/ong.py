@@ -9,10 +9,15 @@ from sqlalchemy.dialects.postgresql import ENUM as PGEnum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
-from app.models.enums import PapelMembro
+from app.models.enums import CausaSocial, PapelMembro
 
 _papel_membro = PGEnum(
     PapelMembro, name="papel_membro", create_type=False,
+    values_callable=lambda e: [m.value for m in e],
+)
+
+_causa_social = PGEnum(
+    CausaSocial, name="causa_social", create_type=False,
     values_callable=lambda e: [m.value for m in e],
 )
 
@@ -27,6 +32,7 @@ class Ong(Base):
     telefone: Mapped[str | None] = mapped_column(String(13))
     descricao: Mapped[str | None] = mapped_column(Text)
     site: Mapped[str | None] = mapped_column(Text)
+    causa: Mapped[CausaSocial | None] = mapped_column(_causa_social)  # migration 0004
     ativo: Mapped[bool] = mapped_column(nullable=False, server_default="true")
     criado_em: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     atualizado_em: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

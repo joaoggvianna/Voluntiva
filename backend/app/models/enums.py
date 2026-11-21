@@ -32,6 +32,18 @@ class StatusAcao(str, Enum):
     CANCELADA = "cancelada"
 
 
+class CausaSocial(str, Enum):
+    """Migration 0004. O rótulo exibido fica no frontend (src/lib/causas.js)."""
+    MEIO_AMBIENTE = "meio_ambiente"
+    EDUCACAO = "educacao"
+    ANIMAIS = "animais"
+    SAUDE = "saude"
+    ASSISTENCIA_SOCIAL = "assistencia_social"
+    CULTURA = "cultura"
+    ESPORTE = "esporte"
+    DIREITOS_HUMANOS = "direitos_humanos"
+
+
 class StatusInscricao(str, Enum):
     PENDENTE = "pendente"
     CONFIRMADA = "confirmada"

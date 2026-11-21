@@ -12,9 +12,11 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { CartaoAcao } from "@/components/CartaoAcao"
 import { useApp } from "@/contexto/AppContexto"
-import { CAUSAS } from "@/data/ongs"
+import { paraAcao } from "@/lib/adaptadores"
+import { api } from "@/lib/api"
 import { causaIcones } from "@/lib/causas"
-import { estatisticas, listarAcoes } from "@/lib/servico"
+import { CAUSAS } from "@/lib/dominio"
+import { useCarregar } from "@/lib/useCarregar"
 
 const passos = [
   {
@@ -44,15 +46,21 @@ const passos = [
 ]
 
 export function Home() {
-  const { usuario } = useApp()
-  const numeros = estatisticas()
-  const destaques = listarAcoes({ somenteComVagas: true }).slice(0, 6)
+  const { usuario, versao } = useApp()
+  const { dados: numeros } = useCarregar(() => api.estatisticas(), [versao])
+  const { dados: destaques = [] } = useCarregar(
+    () =>
+      api
+        .listarAcoes({ com_vagas: true, futuras: true, limite: 6 })
+        .then((pagina) => pagina.itens.map(paraAcao)),
+    [versao]
+  )
 
   const totais = [
-    { valor: numeros.ongs, rotulo: "ONGs cadastradas" },
-    { valor: numeros.acoesAbertas, rotulo: "Ações abertas" },
-    { valor: numeros.voluntarios, rotulo: "Voluntários ativos" },
-    { valor: numeros.participacoes, rotulo: "Inscrições confirmadas" },
+    { valor: numeros?.ongs, rotulo: "ONGs cadastradas" },
+    { valor: numeros?.acoes_abertas, rotulo: "Ações abertas" },
+    { valor: numeros?.voluntarios, rotulo: "Voluntários ativos" },
+    { valor: numeros?.participacoes, rotulo: "Inscrições confirmadas" },
   ]
 
   return (
@@ -91,7 +99,7 @@ export function Home() {
           {totais.map((total) => (
             <Card key={total.rotulo}>
               <CardContent className="pt-6 text-center">
-                <p className="text-4xl font-bold text-primary">{total.valor}</p>
+                <p className="text-4xl font-bold text-primary">{total.valor ?? "–"}</p>
                 <p className="mt-1 text-sm text-muted-foreground">{total.rotulo}</p>
               </CardContent>
             </Card>
@@ -105,16 +113,16 @@ export function Home() {
           Escolha a área em que você quer atuar
         </p>
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-          {CAUSAS.map((causa) => {
-            const Icone = causaIcones[causa]
+          {CAUSAS.map(({ valor, rotulo }) => {
+            const Icone = causaIcones[rotulo]
             return (
-              <Link key={causa} to={`/acoes?causa=${encodeURIComponent(causa)}`}>
+              <Link key={valor} to={`/acoes?causa=${valor}`}>
                 <Card className="h-full transition-colors hover:border-primary hover:bg-accent/50">
                   <CardContent className="flex flex-col items-center gap-3 pt-6 text-center">
                     <div className="rounded-full bg-primary/10 p-3">
                       <Icone className="h-6 w-6 text-primary" />
                     </div>
-                    <span className="text-sm font-medium">{causa}</span>
+                    <span className="text-sm font-medium">{rotulo}</span>
                   </CardContent>
                 </Card>
               </Link>
@@ -135,6 +143,11 @@ export function Home() {
             <Link to="/acoes">Ver todas</Link>
           </Button>
         </div>
+        {destaques.length === 0 && (
+          <p className="rounded-lg border bg-muted/40 p-6 text-center text-sm text-muted-foreground">
+            Nenhuma ação com vagas abertas no momento.
+          </p>
+        )}
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           {destaques.map((acao) => (
             <CartaoAcao key={acao.id} acao={acao} />

@@ -7,7 +7,8 @@ para servirem igualmente à API REST e ao servidor VAP.
 import datetime as dt
 import uuid
 
-from sqlalchemy import func, select, text
+from sqlalchemy import delete, func, select, text
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -15,6 +16,7 @@ from app.core.exceptions import ConflitoDeEstado, DadosInvalidos, RecursoNaoEnco
 from app.models import (
     AcaoHabilidade,
     AcaoSocial,
+    CausaSocial,
     Habilidade,
     Inscricao,
     Ong,
@@ -42,6 +44,8 @@ _ESTADOS_FINAIS = frozenset({StatusAcao.CONCLUIDA, StatusAcao.CANCELADA})
 
 # Colunas NOT NULL: None no PATCH significa "não mexer".
 _NAO_NULOS = frozenset({"titulo", "inicio", "fim", "vagas", "status"})
+# Tratados à parte (tabela acao_habilidade), não são colunas de acao_social.
+_HABILIDADES = ("habilidades", "habilidades_obrigatorias")
 
 
 def _like(busca: str) -> str:
@@ -54,7 +58,7 @@ _SQL_BUSCA = """
     SELECT v.acao_id, v.codigo, v.ong_id, v.ong_nome, v.unidade_id, v.titulo,
            v.inicio, v.fim, v.status, v.vagas, v.vagas_ocupadas,
            v.vagas_disponiveis, v.em_lista_espera,
-           a.descricao, a.local_texto,
+           a.descricao, a.local_texto, a.causa,
            un.nome   AS unidade_nome,
            un.cidade AS unidade_cidade,
            un.uf     AS unidade_uf,
@@ -79,6 +83,8 @@ _SQL_BUSCA = """
             OR a.descricao ILIKE CAST(:busca AS text) ESCAPE '\\'
             OR v.ong_nome ILIKE CAST(:busca AS text) ESCAPE '\\'
             OR un.cidade ILIKE CAST(:busca AS text) ESCAPE '\\')
+       AND (CAST(:causa AS public.causa_social) IS NULL
+            OR a.causa = CAST(:causa AS public.causa_social))
        AND (CAST(:uf AS text) IS NULL OR un.uf = CAST(:uf AS text))
        AND (CAST(:de AS date) IS NULL
             OR (v.inicio AT TIME ZONE :fuso)::date >= CAST(:de AS date))
@@ -104,6 +110,7 @@ def buscar(
     voluntario_id: uuid.UUID | None = None,
     busca: str | None = None,
     uf: str | None = None,
+    causa: CausaSocial | None = None,
     de: dt.date | None = None,
     ate: dt.date | None = None,
     com_vagas: bool = False,
@@ -130,6 +137,7 @@ def buscar(
         "voluntario_id": voluntario_id,
         "busca": _like(busca) if busca else None,
         "uf": uf,
+        "causa": causa.value if causa else None,
         "de": de,
         "ate": ate,
         "com_vagas": com_vagas,
@@ -191,6 +199,11 @@ def _nao_no_passado(inicio: dt.datetime) -> None:
         raise DadosInvalidos("A ação não pode começar no passado")
 
 
+def _causa_ong(db: Session, ong_id: uuid.UUID) -> CausaSocial | None:
+    ong = db.get(Ong, ong_id)
+    return ong.causa if ong else None
+
+
 def _nome_ong(db: Session, ong_id: uuid.UUID) -> str:
     ong = db.get(Ong, ong_id)
     return ong.nome if ong else "Uma ONG"
@@ -211,6 +224,7 @@ def criar(db: Session, dados: AcaoCreate, criado_por: uuid.UUID) -> AcaoSocial:
         fim=dados.fim,
         vagas=dados.vagas,
         status=dados.status,
+        causa=dados.causa or _causa_ong(db, dados.ong_id),
         criado_por=criado_por,
     )
     db.add(acao)
@@ -297,13 +311,32 @@ def atualizar(db: Session, acao_id: uuid.UUID, dados: AcaoUpdate) -> AcaoSocial:
         "titulo": acao.titulo, "inicio": acao.inicio, "fim": acao.fim,
         "local_texto": acao.local_texto, "unidade_id": acao.unidade_id,
     }
+    novas_habilidades = None
+    if mudancas.get("habilidades") is not None or mudancas.get("habilidades_obrigatorias") is not None:
+        obrigatorias = set(mudancas.get("habilidades_obrigatorias") or [])
+        novas_habilidades = (set(mudancas.get("habilidades") or []) | obrigatorias, obrigatorias)
+        _validar_habilidades(db, novas_habilidades[0])
+
     for campo, valor in mudancas.items():
-        if valor is None and campo in _NAO_NULOS:
+        if campo in _HABILIDADES or (valor is None and campo in _NAO_NULOS):
             continue
         setattr(acao, campo, valor)
+
+    if novas_habilidades is not None:
+        todas, obrigatorias = novas_habilidades
+        db.execute(delete(AcaoHabilidade).where(AcaoHabilidade.acao_id == acao.id))
+        db.add_all([
+            AcaoHabilidade(acao_id=acao.id, habilidade_id=h, obrigatoria=h in obrigatorias)
+            for h in sorted(todas)
+        ])
     # Grava a ação antes das notificações: notificar_compativeis lê a
     # linha já atualizada (início/fim) direto no banco.
-    db.flush()
+    try:
+        db.flush()
+    except IntegrityError as exc:
+        # Rede de segurança dos triggers/CHECKs (ex.: trg_acao_valida_vagas).
+        db.rollback()
+        raise ConflitoDeEstado("Alteração recusada pelas regras do banco") from exc
 
     if novo_status != status_atual and novo_status == StatusAcao.CANCELADA:
         notificacao_service.notificar_inscritos(

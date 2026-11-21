@@ -11,17 +11,16 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { useApp } from "@/contexto/AppContexto"
 import { iconesNotificacao } from "@/lib/iconesNotificacao"
-import { listarNotificacoes, marcarNotificacaoLida } from "@/lib/servico"
 import { cn, formatarDataHora } from "@/lib/utils"
 
 export function SinoNotificacoes() {
-  const { usuario, executar, notificacoesNaoLidas } = useApp()
+  const { notificacoes, notificacoesNaoLidas, marcarLida } = useApp()
   const navegar = useNavigate()
-  const recentes = listarNotificacoes(usuario.id).slice(0, 5)
+  const recentes = notificacoes.slice(0, 5)
 
   function abrir(notificacao) {
-    executar(() => marcarNotificacaoLida(notificacao.id))
-    navegar(`/acoes/${notificacao.acaoId}`)
+    marcarLida(notificacao.id)
+    navegar(notificacao.acaoId ? `/acoes/${notificacao.acaoId}` : "/painel?aba=notificacoes")
   }
 
   return (
@@ -31,7 +30,7 @@ export function SinoNotificacoes() {
           <Bell className="h-5 w-5" />
           {notificacoesNaoLidas > 0 && (
             <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold text-destructive-foreground">
-              {notificacoesNaoLidas}
+              {notificacoesNaoLidas > 99 ? "99+" : notificacoesNaoLidas}
             </span>
           )}
         </Button>

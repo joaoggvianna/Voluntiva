@@ -1,6 +1,8 @@
 """Regras de autenticação da API REST. O VAP reaproveita o JWT emitido aqui no comando AUTH."""
+import uuid
 from datetime import datetime, timezone
 
+import jwt
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -9,6 +11,7 @@ from app.core.exceptions import CredenciaisInvalidas, DadosInvalidos, UsuarioIna
 from app.core.security import (
     criar_access_token,
     criar_refresh_token,
+    decodificar_token,
     hash_senha,
     precisa_rehash,
     verificar_senha,
@@ -55,6 +58,26 @@ def emitir_tokens(usuario: Usuario) -> dict:
         "expires_in": settings.access_token_expire_minutes * 60,
         "usuario": usuario,
     }
+
+
+def renovar(db: Session, refresh_token: str) -> dict:
+    """Troca um refresh token válido por um novo par de tokens.
+
+    Limitação conhecida: não há lista de revogação, então um refresh token
+    vazado vale até expirar (REFRESH_TOKEN_EXPIRE_DAYS). Desativar a conta
+    corta o acesso, porque o usuário é relido do banco aqui.
+    """
+    try:
+        payload = decodificar_token(refresh_token, scope_esperado="refresh")
+        usuario_id = uuid.UUID(payload["sub"])
+    except (jwt.InvalidTokenError, KeyError, ValueError) as exc:
+        raise CredenciaisInvalidas("Refresh token inválido ou expirado") from exc
+    usuario = db.get(Usuario, usuario_id)
+    if usuario is None:
+        raise CredenciaisInvalidas("Refresh token inválido ou expirado")
+    if not usuario.ativo:
+        raise UsuarioInativo("Conta desativada")
+    return emitir_tokens(usuario)
 
 
 def registrar_voluntario(db: Session, dados: RegistroVoluntarioRequest) -> Usuario:

@@ -20,6 +20,10 @@ class RegistroVoluntarioRequest(BaseModel):
     uf: str | None = Field(default=None, pattern=r"^[A-Z]{2}$")
 
 
+class RefreshRequest(BaseModel):
+    refresh_token: str = Field(min_length=20, max_length=4096)
+
+
 class UsuarioPublico(BaseModel):
     """Representação segura do usuário: nunca inclui senha_hash."""
     model_config = ConfigDict(from_attributes=True)

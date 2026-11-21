@@ -37,4 +37,52 @@ jobs:
           cache: pip
           cache-dependency-path: backend/requirements-dev.txt
       - run: pip install -r requirements-dev.txt
-      - run: python -m pytest -q
+      # Testes unitários: sem banco (a suíte de integração se pula sozinha).
+      - run: python -m pytest -q -m "not integracao"
+
+  integracao:
+    # Mesmo schema da produção, aplicado do zero a cada execução, com o
+    # backend conectado como voluntiva_app (RLS ligado).
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: voluntiva
+          POSTGRES_PASSWORD: voluntiva
+          POSTGRES_DB: voluntiva
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U voluntiva -d voluntiva"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      PGHOST: localhost
+      PGUSER: voluntiva
+      PGPASSWORD: voluntiva
+      PGDATABASE: voluntiva
+      DATABASE_URL: postgresql+psycopg://voluntiva_app:voluntiva_app_dev@localhost:5432/voluntiva
+      JWT_SECRET: segredo-apenas-para-a-ci-com-mais-de-32-caracteres
+      APP_ENV: test
+    steps:
+      - uses: actions/checkout@v4
+      - name: Aplicar migrations e seed de desenvolvimento
+        run: |
+          for arquivo in db/migrations/*.sql db/dev/*.sql; do
+            echo "::group::$arquivo"
+            psql -v ON_ERROR_STOP=1 -f "$arquivo"
+            echo "::endgroup::"
+          done
+      - name: Migrations são reaplicáveis (0003 e 0004)
+        run: |
+          psql -v ON_ERROR_STOP=1 -f db/migrations/0003_rls_papel_app.sql
+          psql -v ON_ERROR_STOP=1 -f db/migrations/0004_causa.sql
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: backend/requirements-dev.txt
+      - working-directory: backend
+        run: pip install -r requirements-dev.txt
+      - working-directory: backend
+        run: python -m pytest -q -m integracao

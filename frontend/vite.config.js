@@ -16,9 +16,6 @@ export default defineConfig(({ mode }) => {
       host: true, // necessário para funcionar dentro do container
       proxy: {
         // Evita CORS em desenvolvimento: o navegador fala só com :5173.
-        // Hoje nenhuma tela usa estas rotas — a UI roda sobre o mock de
-        // src/lib/servico.js. O proxy já fica pronto para quando as
-        // páginas passarem a chamar src/lib/api.ts.
         '/api': { target: env.VITE_API_URL ?? 'http://localhost:8000', changeOrigin: true },
         '/ws': { target: env.VITE_WS_URL ?? 'ws://localhost:8000', ws: true },
       },

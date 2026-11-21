@@ -1,30 +1,39 @@
 /* ---------------------------------------------------------------------
  * Canal de notificações em tempo real (/ws/notificacoes do FastAPI).
  *
- * STATUS: ainda NÃO está ligado às telas — o sino de notificações
- * (src/components/SinoNotificacoes.jsx) lê do mock em src/lib/servico.js.
- * TODO(equipe): trocar o polling do mock por este cliente.
+ * Usado pelo AppContexto enquanto há sessão: cada notificação gravada no
+ * servidor chega aqui no mesmo formato de GET /notificacoes.
  * ------------------------------------------------------------------ */
 
 import type { Notificacao } from '@/types'
 import { tokenStore } from './api'
 
-/** Cliente do canal de notificações, com reconexão exponencial. */
+function baseWebSocket(): string {
+  const configurada = import.meta.env.VITE_WS_URL
+  if (configurada) return configurada
+  // Mesma origem da página: em dev o Vite encaminha /ws, em produção o nginx.
+  const protocolo = window.location.protocol === 'https:' ? 'wss' : 'ws'
+  return `${protocolo}://${window.location.host}`
+}
+
+/** Cliente do canal de notificações, com reconexão exponencial.
+ *  Devolve a função que encerra a conexão. */
 export function conectarNotificacoes(
   aoReceber: (n: Notificacao) => void,
 ): () => void {
   let socket: WebSocket | null = null
   let tentativa = 0
   let heartbeat: ReturnType<typeof setInterval> | null = null
+  let reconexao: ReturnType<typeof setTimeout> | null = null
   let encerrado = false
 
   const conectar = () => {
     if (encerrado) return
+    // Lido a cada tentativa: depois de um refresh, o token novo é usado.
     const token = tokenStore.get()
     if (!token) return
 
-    const base = import.meta.env.VITE_WS_URL ?? 'ws://localhost:8000'
-    socket = new WebSocket(`${base}/ws/notificacoes?token=${encodeURIComponent(token)}`)
+    socket = new WebSocket(`${baseWebSocket()}/ws/notificacoes?token=${encodeURIComponent(token)}`)
 
     socket.onopen = () => {
       tentativa = 0
@@ -45,7 +54,7 @@ export function conectarNotificacoes(
       if (encerrado) return
       // Backoff exponencial com teto de 30s, para não martelar o servidor.
       const espera = Math.min(1000 * 2 ** tentativa++, 30_000)
-      setTimeout(conectar, espera)
+      reconexao = setTimeout(conectar, espera)
     }
   }
 
@@ -54,6 +63,7 @@ export function conectarNotificacoes(
   return () => {
     encerrado = true
     if (heartbeat) clearInterval(heartbeat)
+    if (reconexao) clearTimeout(reconexao)
     socket?.close()
   }
 }

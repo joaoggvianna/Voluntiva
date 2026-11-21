@@ -14,9 +14,11 @@ import {
 } from "@/components/ui/select"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
+import { toast } from "sonner"
 import { useApp } from "@/contexto/AppContexto"
-import { CAUSAS, UFS } from "@/data/ongs"
-import { cadastrarOng, cadastrarVoluntario } from "@/lib/servico"
+import { ouNulo, somenteDigitos } from "@/lib/adaptadores"
+import { api } from "@/lib/api"
+import { CAUSAS, UFS } from "@/lib/dominio"
 import { emailValido, formatarTelefone } from "@/lib/utils"
 
 function Campo({ id, rotulo, erro, children }) {
@@ -35,7 +37,11 @@ function validar(tipo, valores) {
     erros.nome = tipo === "ong" ? "Informe o nome da ONG." : "Informe o seu nome completo."
   }
   if (!emailValido(valores.email)) erros.email = "Informe um e-mail válido."
-  if (valores.senha.length < 6) erros.senha = "A senha deve ter pelo menos 6 caracteres."
+  if (valores.senha.length < 8) erros.senha = "A senha deve ter pelo menos 8 caracteres."
+  const telefone = somenteDigitos(valores.telefone)
+  if (telefone && (telefone.length < 10 || telefone.length > 11)) {
+    erros.telefone = "Informe o telefone com DDD."
+  }
   if (valores.senha !== valores.confirmacao) erros.confirmacao = "As senhas não conferem."
   if (tipo === "ong") {
     if (!valores.causa) erros.causa = "Selecione a causa principal."
@@ -44,16 +50,19 @@ function validar(tipo, valores) {
     }
     if (valores.cidade.trim().length < 2) erros.cidade = "Informe a cidade da sede."
     if (!valores.uf) erros.uf = "Selecione o estado."
+    const cep = somenteDigitos(valores.cep)
+    if (cep && cep.length !== 8) erros.cep = "O CEP deve ter 8 dígitos."
   }
   return erros
 }
 
 export function Cadastro() {
-  const { usuario, executar } = useApp()
+  const { usuario, entrar } = useApp()
   const navegar = useNavigate()
   const [params, setParams] = useSearchParams()
   const tipo = params.get("tipo") === "ong" ? "ong" : "voluntario"
   const [erros, setErros] = useState({})
+  const [enviando, setEnviando] = useState(false)
   const [valores, setValores] = useState({
     nome: "",
     email: "",
@@ -74,16 +83,43 @@ export function Cadastro() {
     setValores((atual) => ({ ...atual, [campo]: valor }))
   }
 
-  function enviar(evento) {
+  async function enviar(evento) {
     evento.preventDefault()
     const novosErros = validar(tipo, valores)
     setErros(novosErros)
     if (Object.keys(novosErros).length > 0) return
-    const resposta = executar(
-      () => (tipo === "ong" ? cadastrarOng(valores) : cadastrarVoluntario(valores)),
-      "Conta criada com sucesso!"
-    )
-    if (resposta.ok) navegar("/painel", { replace: true })
+
+    const email = valores.email.trim()
+    const telefone = somenteDigitos(valores.telefone) || null
+    setEnviando(true)
+    try {
+      if (tipo === "ong") {
+        await api.cadastrarOng({
+          nome: valores.nome.trim(),
+          email,
+          senha: valores.senha,
+          telefone,
+          causa: valores.causa,
+          descricao: valores.descricao.trim(),
+          sede: {
+            nome: "Sede",
+            logradouro: ouNulo(valores.endereco),
+            cidade: valores.cidade.trim(),
+            uf: valores.uf,
+            cep: somenteDigitos(valores.cep) || null,
+          },
+        })
+      } else {
+        await api.registrarVoluntario({ nome: valores.nome.trim(), email, senha: valores.senha, telefone })
+      }
+      await entrar(email, valores.senha)
+      toast.success("Conta criada com sucesso!")
+      navegar(tipo === "voluntario" ? "/painel?aba=perfil" : "/painel", { replace: true })
+    } catch (erro) {
+      toast.error(erro.message)
+    } finally {
+      setEnviando(false)
+    }
   }
 
   return (
@@ -138,7 +174,7 @@ export function Cadastro() {
                   aria-invalid={Boolean(erros.email)}
                 />
               </Campo>
-              <Campo id="telefone" rotulo="Telefone (opcional)">
+              <Campo id="telefone" rotulo="Telefone (opcional)" erro={erros.telefone}>
                 <Input
                   id="telefone"
                   inputMode="tel"
@@ -158,8 +194,8 @@ export function Cadastro() {
                     </SelectTrigger>
                     <SelectContent>
                       {CAUSAS.map((causa) => (
-                        <SelectItem key={causa} value={causa}>
-                          {causa}
+                        <SelectItem key={causa.valor} value={causa.valor}>
+                          {causa.rotulo}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -214,7 +250,7 @@ export function Cadastro() {
                       </Campo>
                     </div>
                     <div className="sm:col-span-2">
-                      <Campo id="cep" rotulo="CEP (opcional)">
+                      <Campo id="cep" rotulo="CEP (opcional)" erro={erros.cep}>
                         <Input
                           id="cep"
                           value={valores.cep}
@@ -250,8 +286,8 @@ export function Cadastro() {
               </Campo>
             </div>
 
-            <Button type="submit" className="w-full">
-              {tipo === "ong" ? "Cadastrar ONG" : "Criar minha conta"}
+            <Button type="submit" className="w-full" disabled={enviando}>
+              {enviando ? "Enviando..." : tipo === "ong" ? "Cadastrar ONG" : "Criar minha conta"}
             </Button>
           </form>
 

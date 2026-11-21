@@ -9,10 +9,15 @@ from sqlalchemy.dialects.postgresql import ENUM as PGEnum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
-from app.models.enums import StatusAcao
+from app.models.enums import CausaSocial, StatusAcao
 
 _status_acao = PGEnum(
     StatusAcao, name="status_acao", create_type=False,
+    values_callable=lambda e: [m.value for m in e],
+)
+
+_causa_social = PGEnum(
+    CausaSocial, name="causa_social", create_type=False,
     values_callable=lambda e: [m.value for m in e],
 )
 
@@ -46,6 +51,7 @@ class AcaoSocial(Base):
     fim: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     vagas: Mapped[int] = mapped_column(Integer, nullable=False)
     status: Mapped[StatusAcao] = mapped_column(_status_acao, nullable=False, server_default="rascunho")
+    causa: Mapped[CausaSocial | None] = mapped_column(_causa_social)  # migration 0004
     criado_por: Mapped[uuid.UUID | None] = mapped_column(Uuid, ForeignKey("usuario.id", ondelete="SET NULL"))
     criado_em: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     atualizado_em: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

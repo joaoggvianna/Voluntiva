@@ -3,59 +3,54 @@
 Interface web do Voluntiva. React + Vite + Tailwind CSS, com os
 componentes de base vindos do shadcn/ui (`src/components/ui/`).
 
-## Estado atual: a UI ainda roda sobre um mock
+## Como a interface fala com o backend
 
-As telas **não falam com o backend** (`backend/app/`) por enquanto. Os
-dados-semente ficam em `src/data/` e as alterações são gravadas no
-`localStorage` do navegador, pela dupla:
+Todas as telas usam a API real (`backend/app/api/v1`); não há mais mock
+nem dados-semente no navegador.
 
-- `src/lib/armazenamento.js` — persistência (leitura/gravação/sessão);
-- `src/lib/servico.js` — regras de negócio simuladas.
-
-As coleções do mock seguem o modelo relacional de `db/migrations/`:
-`usuarios`, `ongs`, `unidades`, `acoes`, `inscricoes`, `notificacoes`.
-
-A camada de integração com o backend real **já existe e está pronta para
-uso**, mas nenhuma tela a importa ainda:
-
-| Arquivo | O que é |
+| Arquivo | Papel |
 | --- | --- |
-| `src/lib/api.ts` | cliente da API REST (`/api/v1`), com JWT |
+| `src/lib/api.ts` | cliente REST (`/api/v1`): único ponto que faz `fetch`, guarda os tokens e renova a sessão com o refresh token quando recebe 401 |
 | `src/lib/ws.ts` | canal `/ws/notificacoes`, com reconexão exponencial |
+| `src/lib/adaptadores.js` | converte o formato da API (snake_case, datas ISO, enums) para o que as telas exibem, e o caminho inverso nos formulários |
+| `src/lib/dominio.js` | vocabulário fixo: causas, UFs, dias da semana e turnos |
+| `src/lib/useCarregar.js` | hook de carga assíncrona que descarta respostas fora de ordem |
+| `src/contexto/AppContexto.jsx` | sessão, perfil do usuário, catálogo de habilidades e notificações em tempo real |
 | `src/types/index.ts` | tipos espelhando os schemas Pydantic do backend |
 
-**TODO(equipe):** migrar as chamadas de `servico.js` para `api.ts`, tela
-por tela, e remover o mock ao final.
+Depois de cada alteração bem-sucedida (`executar` do contexto), o contador
+`versao` muda e as telas que dependem dele recarregam os dados. Uma
+notificação recebida pelo WebSocket faz o mesmo.
+
+Disponibilidade: a tela trabalha com dias e turnos (Manhã 6h–12h, Tarde
+12h–18h, Noite 18h–24h). Turnos vizinhos viram uma janela só no backend
+(Manhã + Tarde = 6h–18h), para uma ação das 10h às 14h casar com quem
+marcou os dois.
 
 ## Como executar
 
 ```bash
-npm install
+npm ci
 cp .env.example .env.local
-npm run dev     # http://localhost:5173
+npm run dev     # http://localhost:5173 (backend em http://localhost:8000)
 ```
 
-O `vite.config.js` já faz proxy de `/api` para `http://localhost:8000` e
-de `/ws` para o mesmo host, então não há CORS em desenvolvimento. Como
-nada chama essas rotas ainda, o backend não precisa estar no ar para a
-UI funcionar.
+O `vite.config.js` faz proxy de `/api` e `/ws` para o backend, então não
+há CORS em desenvolvimento. Em produção (imagem Docker), o nginx faz o
+mesmo papel (`nginx.conf`). Para subir tudo junto, use o
+`docker-compose.yml` da raiz (ver `docs/GUIA_EXECUCAO.md`).
 
 Outros comandos:
 
 ```bash
 npm run build      # gera dist/
 npm run lint       # eslint nos .js/.jsx
-npm run typecheck  # tsc nos poucos arquivos .ts
+npm run typecheck  # tsc nos arquivos .ts
 ```
 
-## Contas de teste (mock)
-
-| Tipo | E-mail | Senha |
-| --- | --- | --- |
-| Voluntário | voluntario@teste.com | 123456 |
-| ONG | ong@teste.com | 123456 |
-
-Para restaurar os dados iniciais, limpe os dados do site no navegador.
+Em `npm run dev`, a tela de login mostra atalhos para as contas do seed de
+desenvolvimento (senha `voluntiva123`). No build de produção eles não
+aparecem.
 
 ## Divergências registradas
 

@@ -12,8 +12,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { SinoNotificacoes } from "@/components/SinoNotificacoes"
+import { toast } from "sonner"
 import { useApp } from "@/contexto/AppContexto"
-import { sair } from "@/lib/servico"
 
 const links = [
   { to: "/", label: "Início", fim: true },
@@ -38,11 +38,12 @@ function classeLink({ isActive }) {
 
 export function Navbar() {
   const [aberto, setAberto] = useState(false)
-  const { usuario, executar } = useApp()
+  const { usuario, sair } = useApp()
   const navegar = useNavigate()
 
   function sairDaConta() {
-    executar(() => sair(), "Você saiu da sua conta.")
+    sair()
+    toast.success("Você saiu da sua conta.")
     setAberto(false)
     navegar("/")
   }
@@ -84,7 +85,11 @@ export function Navbar() {
                   <DropdownMenuLabel className="space-y-0.5">
                     <p className="truncate">{usuario.nome}</p>
                     <p className="truncate text-xs font-normal text-muted-foreground">
-                      {usuario.tipo === "ong" ? "Conta de ONG" : "Conta de voluntário"}
+                      {usuario.tipo === "voluntario"
+                        ? "Conta de voluntário"
+                        : usuario.tipo === "admin"
+                          ? "Administrador"
+                          : "Conta de ONG"}
                     </p>
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />

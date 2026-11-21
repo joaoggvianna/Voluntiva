@@ -1,17 +1,42 @@
 import { Link, useParams } from "react-router-dom"
-import { ArrowLeft, CalendarDays, Mail, MapPin, Phone, SearchX } from "lucide-react"
+import { ArrowLeft, CalendarDays, Globe, Mail, MapPin, Phone, SearchX } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { CartaoAcao } from "@/components/CartaoAcao"
+import { Carregando, ErroCarga } from "@/components/Carregando"
 import { EstadoVazio } from "@/components/EstadoVazio"
 import { SeloCausa } from "@/components/SeloCausa"
-import { listarAcoes, obterOng } from "@/lib/servico"
+import { useApp } from "@/contexto/AppContexto"
+import { paraAcao, paraOng } from "@/lib/adaptadores"
+import { api } from "@/lib/api"
+import { useCarregar } from "@/lib/useCarregar"
 
 export function OngDetalhe() {
   const { id } = useParams()
-  const ong = obterOng(id)
+  const { versao } = useApp()
+  const { dados, carregando, erro, recarregar } = useCarregar(async () => {
+    const [ong, abertas, encerradas] = await Promise.all([
+      api.obterOng(id),
+      api.listarAcoes({ ong_id: id, futuras: true, limite: 100 }),
+      api.listarAcoes({ ong_id: id, status: "concluida", limite: 30 }),
+    ])
+    return {
+      ong: paraOng(ong),
+      acoes: [...abertas.itens, ...encerradas.itens].map(paraAcao),
+    }
+  }, [id, versao])
 
-  if (!ong) {
+  const naoEncontrada = erro && (erro.status === 404 || erro.status === 422)
+  if (carregando && !dados) return <Carregando />
+  if (erro && !naoEncontrada && !dados) {
+    return (
+      <div className="container mx-auto max-w-2xl px-4 py-16">
+        <ErroCarga erro={erro} aoTentarDeNovo={recarregar} />
+      </div>
+    )
+  }
+
+  if (naoEncontrada || !dados) {
     return (
       <div className="container mx-auto max-w-2xl px-4 py-16">
         <EstadoVazio
@@ -27,7 +52,7 @@ export function OngDetalhe() {
     )
   }
 
-  const acoes = listarAcoes({ ongId: ong.id, incluirEncerradas: true })
+  const { ong, acoes } = dados
   const abertas = acoes.filter((a) => a.situacao === "ativa")
   const anteriores = acoes.filter((a) => a.situacao !== "ativa")
 
@@ -44,21 +69,35 @@ export function OngDetalhe() {
           <div className="space-y-4">
             <SeloCausa causa={ong.causa} />
             <h1 className="text-3xl font-bold md:text-4xl">{ong.nome}</h1>
-            <p className="leading-relaxed text-muted-foreground">{ong.descricao}</p>
-            <p className="flex items-center gap-2 text-sm text-muted-foreground">
-              <CalendarDays className="h-4 w-4 text-primary" /> Fundada em {ong.fundacao}
+            <p className="whitespace-pre-line leading-relaxed text-muted-foreground">
+              {ong.descricao || "Esta ONG ainda não escreveu uma descrição."}
             </p>
           </div>
 
           <Card>
             <CardContent className="space-y-3 pt-6 text-sm">
               <h2 className="font-semibold">Contato</h2>
-              <p className="flex items-center gap-2 text-muted-foreground">
-                <Mail className="h-4 w-4 text-primary" /> {ong.email}
-              </p>
-              <p className="flex items-center gap-2 text-muted-foreground">
-                <Phone className="h-4 w-4 text-primary" /> {ong.telefone}
-              </p>
+              {ong.email && (
+                <p className="flex items-center gap-2 text-muted-foreground">
+                  <Mail className="h-4 w-4 text-primary" /> {ong.email}
+                </p>
+              )}
+              {ong.telefone && (
+                <p className="flex items-center gap-2 text-muted-foreground">
+                  <Phone className="h-4 w-4 text-primary" /> {ong.telefone}
+                </p>
+              )}
+              {ong.site && (
+                <p className="flex items-center gap-2 text-muted-foreground">
+                  <Globe className="h-4 w-4 text-primary" />
+                  <a href={ong.site} target="_blank" rel="noopener noreferrer" className="hover:underline">
+                    {ong.site}
+                  </a>
+                </p>
+              )}
+              {!ong.email && !ong.telefone && !ong.site && (
+                <p className="text-muted-foreground">Contato não informado.</p>
+              )}
             </CardContent>
           </Card>
         </div>
@@ -74,8 +113,12 @@ export function OngDetalhe() {
                 <p className="flex items-start gap-2 text-muted-foreground">
                   <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
                   <span>
-                    {unidade.endereco}
-                    <br />
+                    {unidade.endereco && (
+                      <>
+                        {unidade.endereco}
+                        <br />
+                      </>
+                    )}
                     {unidade.cidade}/{unidade.uf}
                     {unidade.cep && ` — CEP ${unidade.cep}`}
                   </span>

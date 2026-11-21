@@ -1,6 +1,6 @@
 import { useState } from "react"
 import { Link, useSearchParams } from "react-router-dom"
-import { Building2, CalendarDays, MapPin, Pencil, Plus, Trash2, Users } from "lucide-react"
+import { Building2, CalendarDays, MapPin, Pencil, Plus, Send, Trash2, Users } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -21,6 +21,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Carregando, ErroCarga } from "@/components/Carregando"
 import { ConfirmarDialogo } from "@/components/ConfirmarDialogo"
 import { EstadoVazio } from "@/components/EstadoVazio"
 import { FormularioAcao } from "@/components/FormularioAcao"
@@ -28,13 +29,9 @@ import { FormularioUnidade } from "@/components/FormularioUnidade"
 import { ListaNotificacoes } from "@/components/ListaNotificacoes"
 import { ListaPresenca } from "@/components/ListaPresenca"
 import { useApp } from "@/contexto/AppContexto"
-import {
-  cancelarAcao,
-  listarAcoes,
-  listarUnidades,
-  obterOng,
-  removerUnidade,
-} from "@/lib/servico"
+import { paraAcao, paraOng, paraUnidade } from "@/lib/adaptadores"
+import { api } from "@/lib/api"
+import { useCarregar } from "@/lib/useCarregar"
 import { formatarData, hojeIso } from "@/lib/utils"
 
 function BlocoNumero({ icone: Icone, valor, rotulo }) {
@@ -55,6 +52,7 @@ function BlocoNumero({ icone: Icone, valor, rotulo }) {
 
 function SituacaoBadge({ situacao }) {
   if (situacao === "ativa") return <Badge>Ativa</Badge>
+  if (situacao === "rascunho") return <Badge variant="outline">Rascunho</Badge>
   if (situacao === "cancelada") return <Badge variant="destructive">Cancelada</Badge>
   return <Badge variant="secondary">Encerrada</Badge>
 }
@@ -63,6 +61,7 @@ function AbaAcoes({ ong, acoes, unidades }) {
   const { executar } = useApp()
   const [formulario, setFormulario] = useState(null)
   const [cancelando, setCancelando] = useState(null)
+  const [publicando, setPublicando] = useState(null)
 
   return (
     <div className="space-y-4">
@@ -112,7 +111,7 @@ function AbaAcoes({ ong, acoes, unidades }) {
                     {formatarData(acao.data)}
                     <span className="block text-xs text-muted-foreground">{acao.horario}</span>
                   </TableCell>
-                  <TableCell className="whitespace-nowrap">{acao.unidade?.nome}</TableCell>
+                  <TableCell className="whitespace-nowrap">{acao.unidade?.nome ?? "—"}</TableCell>
                   <TableCell className="whitespace-nowrap">
                     {acao.inscritos}/{acao.vagas}
                   </TableCell>
@@ -120,8 +119,18 @@ function AbaAcoes({ ong, acoes, unidades }) {
                     <SituacaoBadge situacao={acao.situacao} />
                   </TableCell>
                   <TableCell className="text-right">
-                    {acao.situacao === "ativa" && (
+                    {(acao.situacao === "ativa" || acao.situacao === "rascunho") && (
                       <div className="flex justify-end gap-1">
+                        {acao.situacao === "rascunho" && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            aria-label={`Publicar ${acao.titulo}`}
+                            onClick={() => setPublicando(acao)}
+                          >
+                            <Send />
+                          </Button>
+                        )}
                         <Button
                           variant="ghost"
                           size="icon"
@@ -171,14 +180,32 @@ function AbaAcoes({ ong, acoes, unidades }) {
         rotuloConfirmar="Cancelar ação"
         destrutivo
         aoConfirmar={() =>
-          executar(() => cancelarAcao(cancelando.id, ong.id), "Ação cancelada e inscritos notificados.")
+          executar(
+            () => api.atualizarAcao(cancelando.id, { status: "cancelada" }),
+            "Ação cancelada e inscritos notificados."
+          )
+        }
+      />
+
+      <ConfirmarDialogo
+        aberto={Boolean(publicando)}
+        aoFechar={() => setPublicando(null)}
+        titulo="Publicar esta ação?"
+        descricao={
+          publicando
+            ? `"${publicando.titulo}" ficará visível para todos e os voluntários compatíveis serão avisados.`
+            : ""
+        }
+        rotuloConfirmar="Publicar"
+        aoConfirmar={() =>
+          executar(() => api.atualizarAcao(publicando.id, { status: "publicada" }), "Ação publicada.")
         }
       />
     </div>
   )
 }
 
-function AbaUnidades({ ong, unidades }) {
+function AbaUnidades({ ong, unidades, podeGerir }) {
   const { executar } = useApp()
   const [formulario, setFormulario] = useState(null)
   const [removendo, setRemovendo] = useState(null)
@@ -189,9 +216,11 @@ function AbaUnidades({ ong, unidades }) {
         <p className="text-sm text-muted-foreground">
           {unidades.length === 1 ? "1 unidade cadastrada" : `${unidades.length} unidades cadastradas`}
         </p>
-        <Button onClick={() => setFormulario({ unidade: null })}>
-          <Plus /> Nova unidade
-        </Button>
+        {podeGerir && (
+          <Button onClick={() => setFormulario({ unidade: null })}>
+            <Plus /> Nova unidade
+          </Button>
+        )}
       </div>
 
       {unidades.length === 0 ? (
@@ -210,31 +239,37 @@ function AbaUnidades({ ong, unidades }) {
                   <p className="flex items-start gap-2 text-muted-foreground">
                     <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
                     <span>
-                      {unidade.endereco}
-                      <br />
+                      {unidade.endereco && (
+                        <>
+                          {unidade.endereco}
+                          <br />
+                        </>
+                      )}
                       {unidade.cidade}/{unidade.uf}
                       {unidade.cep && ` — CEP ${unidade.cep}`}
                     </span>
                   </p>
                 </div>
-                <div className="flex shrink-0 gap-1">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    aria-label={`Editar ${unidade.nome}`}
-                    onClick={() => setFormulario({ unidade })}
-                  >
-                    <Pencil />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    aria-label={`Remover ${unidade.nome}`}
-                    onClick={() => setRemovendo(unidade)}
-                  >
-                    <Trash2 className="text-destructive" />
-                  </Button>
-                </div>
+                {podeGerir && (
+                  <div className="flex shrink-0 gap-1">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      aria-label={`Editar ${unidade.nome}`}
+                      onClick={() => setFormulario({ unidade })}
+                    >
+                      <Pencil />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      aria-label={`Remover ${unidade.nome}`}
+                      onClick={() => setRemovendo(unidade)}
+                    >
+                      <Trash2 className="text-destructive" />
+                    </Button>
+                  </div>
+                )}
               </CardContent>
             </Card>
           ))}
@@ -262,26 +297,29 @@ function AbaUnidades({ ong, unidades }) {
         }
         rotuloConfirmar="Remover"
         destrutivo
-        aoConfirmar={() => executar(() => removerUnidade(removendo.id, ong.id), "Unidade removida.")}
+        aoConfirmar={() =>
+          executar(() => api.removerUnidade(ong.id, removendo.id), "Unidade removida.")
+        }
       />
     </div>
   )
 }
 
-function AbaPresenca({ ong, acoes }) {
+function AbaPresenca({ acoes }) {
   const [selecionada, setSelecionada] = useState(null)
-  const candidatas = acoes.filter((a) => a.situacao !== "cancelada")
+  const candidatas = acoes.filter((a) => a.situacao === "ativa" || a.situacao === "concluida")
 
   if (candidatas.length === 0) {
     return (
       <EstadoVazio
         icone={Users}
         titulo="Nenhuma ação para controlar"
-        descricao="Crie uma ação para acompanhar inscritos e registrar presença."
+        descricao="Publique uma ação para acompanhar inscritos e registrar presença."
       />
     )
   }
 
+  // Padrão: a ação mais recente que já começou (hoje ou antes).
   const padrao =
     candidatas.filter((a) => a.data <= hojeIso()).sort((a, b) => b.data.localeCompare(a.data))[0] ??
     candidatas[0]
@@ -291,50 +329,114 @@ function AbaPresenca({ ong, acoes }) {
     <div className="space-y-4">
       <div className="max-w-md space-y-2">
         <Label>Ação</Label>
-        <Select value={String(acao.id)} onValueChange={(valor) => setSelecionada(Number(valor))}>
+        <Select value={acao.id} onValueChange={setSelecionada}>
           <SelectTrigger>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
             {candidatas.map((item) => (
-              <SelectItem key={item.id} value={String(item.id)}>
+              <SelectItem key={item.id} value={item.id}>
                 {item.titulo} — {formatarData(item.data)}
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
       </div>
-      <ListaPresenca key={acao.id} acao={acao} ongId={ong.id} />
+      <ListaPresenca key={acao.id} acao={acao} />
     </div>
   )
 }
 
 export function PainelOng() {
-  const { usuario, notificacoesNaoLidas } = useApp()
+  const { usuario, notificacoesNaoLidas, versao } = useApp()
   const [params, setParams] = useSearchParams()
   const aba = params.get("aba") ?? "acoes"
-  const ong = obterOng(usuario.ongId)
-  const acoes = listarAcoes({ ongId: usuario.ongId, incluirEncerradas: true })
-  const unidades = listarUnidades(usuario.ongId)
+  const [ongEscolhida, setOngEscolhida] = useState(null)
+  const minhas = usuario.ongs ?? []
+  const vinculo = minhas.find((o) => o.id === ongEscolhida) ?? minhas[0]
+  const vinculoId = vinculo?.id
+
+  const { dados, carregando, erro, recarregar } = useCarregar(async () => {
+    if (!vinculoId) return null
+    const [ong, acoes, unidades] = await Promise.all([
+      api.obterOng(vinculoId),
+      api.listarAcoes({ ong_id: vinculoId, todos_status: true, limite: 100 }),
+      api.listarUnidades(vinculoId),
+    ])
+    return {
+      ong: paraOng(ong),
+      acoes: acoes.itens.map(paraAcao).sort((a, b) => b.inicio.localeCompare(a.inicio)),
+      unidades: unidades.map(paraUnidade),
+    }
+  }, [vinculoId, versao])
+
+  if (!vinculo) {
+    return (
+      <div className="container mx-auto max-w-2xl px-4 py-16">
+        <EstadoVazio
+          icone={Building2}
+          titulo="Conta sem ONG vinculada"
+          descricao="Peça a quem administra a ONG para vincular a sua conta."
+        />
+      </div>
+    )
+  }
+  if (erro && !dados) {
+    return (
+      <div className="container mx-auto max-w-2xl px-4 py-16">
+        <ErroCarga erro={erro} aoTentarDeNovo={recarregar} />
+      </div>
+    )
+  }
+  if (carregando && !dados) return <Carregando />
+
+  const { ong, acoes } = dados
+  // Unidades em que o usuário pode criar ações: todas, se gere a ONG inteira.
+  const permitidas = new Set(vinculo.unidades.map((u) => u.id))
+  const unidadesParaAcoes = vinculo.acesso_total
+    ? dados.unidades
+    : dados.unidades.filter((u) => permitidas.has(u.id))
+  const podeGerirUnidades =
+    usuario.tipo === "admin" ||
+    (vinculo.acesso_total && ["proprietario", "gestor"].includes(vinculo.papel))
   const abertas = acoes.filter((a) => a.situacao === "ativa")
   const inscritosTotal = abertas.reduce((soma, a) => soma + a.inscritos, 0)
 
   return (
     <div className="container mx-auto space-y-8 px-4 py-10">
-      <div>
-        <h1 className="text-3xl font-bold">{ong.nome}</h1>
-        <p className="mt-2 text-muted-foreground">
-          Gerencie unidades, ações sociais, inscritos e presença.{" "}
-          <Link to={`/ongs/${ong.id}`} className="text-primary hover:underline">
-            Ver página pública
-          </Link>
-        </p>
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold">{ong.nome}</h1>
+          <p className="mt-2 text-muted-foreground">
+            Gerencie unidades, ações sociais, inscritos e presença.{" "}
+            <Link to={`/ongs/${ong.id}`} className="text-primary hover:underline">
+              Ver página pública
+            </Link>
+          </p>
+        </div>
+        {minhas.length > 1 && (
+          <div className="w-64 space-y-2">
+            <Label>ONG</Label>
+            <Select value={vinculo.id} onValueChange={setOngEscolhida}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {minhas.map((item) => (
+                  <SelectItem key={item.id} value={item.id}>
+                    {item.nome}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
       </div>
 
       <div className="grid gap-4 sm:grid-cols-3">
         <BlocoNumero icone={CalendarDays} valor={abertas.length} rotulo="Ações ativas" />
         <BlocoNumero icone={Users} valor={inscritosTotal} rotulo="Inscritos nas ações ativas" />
-        <BlocoNumero icone={Building2} valor={unidades.length} rotulo="Unidades" />
+        <BlocoNumero icone={Building2} valor={dados.unidades.length} rotulo="Unidades" />
       </div>
 
       <Tabs value={aba} onValueChange={(valor) => setParams({ aba: valor }, { replace: true })}>
@@ -352,13 +454,13 @@ export function PainelOng() {
           </TabsTrigger>
         </TabsList>
         <TabsContent value="acoes" className="mt-6">
-          <AbaAcoes ong={ong} acoes={acoes} unidades={unidades} />
+          <AbaAcoes ong={ong} acoes={acoes} unidades={unidadesParaAcoes} />
         </TabsContent>
         <TabsContent value="unidades" className="mt-6">
-          <AbaUnidades ong={ong} unidades={unidades} />
+          <AbaUnidades ong={ong} unidades={dados.unidades} podeGerir={podeGerirUnidades} />
         </TabsContent>
         <TabsContent value="presenca" className="mt-6">
-          <AbaPresenca ong={ong} acoes={acoes} />
+          <AbaPresenca acoes={acoes} />
         </TabsContent>
         <TabsContent value="notificacoes" className="mt-6">
           <ListaNotificacoes />

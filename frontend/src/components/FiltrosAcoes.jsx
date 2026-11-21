@@ -10,7 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { CAUSAS, UFS } from "@/data/ongs"
+import { CAUSAS, UFS } from "@/lib/dominio"
 
 const TODAS = "todas"
 
@@ -43,8 +43,8 @@ export function FiltrosAcoes({ filtros, aoAlterar, aoLimpar, mostrarCompativeis 
             <SelectContent>
               <SelectItem value={TODAS}>Todas as causas</SelectItem>
               {CAUSAS.map((causa) => (
-                <SelectItem key={causa} value={causa}>
-                  {causa}
+                <SelectItem key={causa.valor} value={causa.valor}>
+                  {causa.rotulo}
                 </SelectItem>
               ))}
             </SelectContent>

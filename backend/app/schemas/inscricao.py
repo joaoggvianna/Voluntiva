@@ -5,7 +5,7 @@ import uuid
 
 from pydantic import BaseModel, ConfigDict
 
-from app.models.enums import StatusAcao, StatusInscricao
+from app.models.enums import CausaSocial, StatusAcao, StatusInscricao
 
 
 class InscricaoCreate(BaseModel):
@@ -43,6 +43,7 @@ class AcaoResumo(BaseModel):
     inicio: dt.datetime
     fim: dt.datetime
     status: StatusAcao
+    causa: CausaSocial | None
     local_texto: str | None
     ong_id: uuid.UUID
     ong_nome: str

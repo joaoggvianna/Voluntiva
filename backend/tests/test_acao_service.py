@@ -18,14 +18,17 @@ FIM = dt.datetime(2026, 12, 5, 17, 0, tzinfo=UTC)
 
 def acao(status=StatusAcao.PUBLICADA, vagas=10):
     return SimpleNamespace(
-        id=uuid.uuid4(), status=status, vagas=vagas, inicio=INICIO, fim=FIM, titulo="Mutirão"
+        id=uuid.uuid4(), ong_id=uuid.uuid4(), unidade_id=None, status=status, vagas=vagas,
+        inicio=INICIO, fim=FIM, titulo="Mutirão", local_texto="Praça",
     )
 
 
 def db_com(acao_obj, confirmadas=0):
     db = Mock()
+    db.info = {}
     db.get.return_value = acao_obj
     db.scalar.return_value = confirmadas
+    db.execute.return_value.mappings.return_value.all.return_value = []
     return db
 
 

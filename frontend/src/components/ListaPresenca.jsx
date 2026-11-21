@@ -1,22 +1,26 @@
-import { Check, Users, X } from "lucide-react"
+import { Check, LogIn, LogOut, Users } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Carregando, ErroCarga } from "@/components/Carregando"
 import { EstadoVazio } from "@/components/EstadoVazio"
 import { useApp } from "@/contexto/AppContexto"
-import { listarInscritos, registrarPresenca } from "@/lib/servico"
+import { estadoPresenca, horaLocal, paraInscrito } from "@/lib/adaptadores"
+import { api } from "@/lib/api"
+import { useCarregar } from "@/lib/useCarregar"
 import { hojeIso } from "@/lib/utils"
 
-export function ListaPresenca({ acao, ongId }) {
-  const { executar } = useApp()
-  const inscritos = listarInscritos(acao.id)
+/** Inscritos de uma ação e registro de presença por check-in/check-out.
+ *  As horas de cada voluntário são calculadas pelo banco no check-out. */
+export function ListaPresenca({ acao }) {
+  const { executar, versao } = useApp()
+  const { dados: inscritos, carregando, erro, recarregar } = useCarregar(
+    () => api.listarInscritos(acao.id).then((lista) => lista.map(paraInscrito)),
+    [acao.id, versao]
+  )
   const liberada = acao.data <= hojeIso() && acao.situacao !== "cancelada"
-  const presentes = inscritos.filter((i) => i.presenca === "presente").length
-  const ausentes = inscritos.filter((i) => i.presenca === "ausente").length
 
-  function marcar(inscricao, valor) {
-    const novo = inscricao.presenca === valor ? null : valor
-    executar(() => registrarPresenca(inscricao.id, ongId, novo))
-  }
+  if (erro && !inscritos) return <ErroCarga erro={erro} aoTentarDeNovo={recarregar} />
+  if (carregando && !inscritos) return <Carregando />
 
   if (inscritos.length === 0) {
     return (
@@ -28,12 +32,15 @@ export function ListaPresenca({ acao, ongId }) {
     )
   }
 
+  const presentes = inscritos.filter((i) => estadoPresenca(i) === "presente").length
+  const emAndamento = inscritos.filter((i) => estadoPresenca(i) === "em_andamento").length
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2 text-sm">
         <Badge variant="secondary">{inscritos.length} inscritos</Badge>
-        <Badge>{presentes} presentes</Badge>
-        <Badge variant="outline">{ausentes} ausentes</Badge>
+        <Badge>{presentes} com presença completa</Badge>
+        {emAndamento > 0 && <Badge variant="outline">{emAndamento} sem check-out</Badge>}
         {!liberada && (
           <span className="text-muted-foreground">
             O registro de presença é liberado na data da ação.
@@ -42,40 +49,52 @@ export function ListaPresenca({ acao, ongId }) {
       </div>
 
       <ul className="divide-y rounded-lg border">
-        {inscritos.map((inscricao) => (
-          <li
-            key={inscricao.id}
-            className="flex flex-wrap items-center justify-between gap-3 p-4"
-          >
-            <div className="min-w-0">
-              <p className="font-medium">{inscricao.voluntario.nome}</p>
-              <p className="truncate text-sm text-muted-foreground">
-                {inscricao.voluntario.email}
-                {inscricao.voluntario.telefone && ` · ${inscricao.voluntario.telefone}`}
-              </p>
-            </div>
-            <div className="flex gap-2">
-              <Button
-                size="sm"
-                variant={inscricao.presenca === "presente" ? "default" : "outline"}
-                disabled={!liberada}
-                aria-pressed={inscricao.presenca === "presente"}
-                onClick={() => marcar(inscricao, "presente")}
-              >
-                <Check /> Presente
-              </Button>
-              <Button
-                size="sm"
-                variant={inscricao.presenca === "ausente" ? "destructive" : "outline"}
-                disabled={!liberada}
-                aria-pressed={inscricao.presenca === "ausente"}
-                onClick={() => marcar(inscricao, "ausente")}
-              >
-                <X /> Ausente
-              </Button>
-            </div>
-          </li>
-        ))}
+        {inscritos.map((inscrito) => {
+          const estado = estadoPresenca(inscrito)
+          return (
+            <li key={inscrito.id} className="flex flex-wrap items-center justify-between gap-3 p-4">
+              <div className="min-w-0">
+                <p className="font-medium">{inscrito.voluntario.nome}</p>
+                <p className="truncate text-sm text-muted-foreground">
+                  {inscrito.voluntario.email}
+                  {inscrito.voluntario.telefone && ` · ${inscrito.voluntario.telefone}`}
+                </p>
+                {inscrito.checkIn && (
+                  <p className="text-xs text-muted-foreground">
+                    Entrada {horaLocal(inscrito.checkIn)}
+                    {inscrito.checkOut && ` · saída ${horaLocal(inscrito.checkOut)}`}
+                  </p>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                {estado === "sem_registro" && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={!liberada}
+                    onClick={() => executar(() => api.checkIn(inscrito.id), "Check-in registrado.")}
+                  >
+                    <LogIn /> Check-in
+                  </Button>
+                )}
+                {estado === "em_andamento" && (
+                  <Button
+                    size="sm"
+                    onClick={() => executar(() => api.checkOut(inscrito.id), "Check-out registrado.")}
+                  >
+                    <LogOut /> Check-out
+                  </Button>
+                )}
+                {estado === "presente" && (
+                  <Badge className="gap-1">
+                    <Check className="h-3 w-3" /> Presente
+                    {inscrito.horas != null && ` · ${inscrito.horas.toLocaleString("pt-BR")} h`}
+                  </Badge>
+                )}
+              </div>
+            </li>
+          )
+        })}
       </ul>
     </div>
   )

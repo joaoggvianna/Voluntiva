@@ -16,7 +16,7 @@ export function CartaoOng({ ong }) {
           <ul className="mt-auto space-y-1 text-xs text-muted-foreground">
             <li className="flex items-center gap-1.5">
               <MapPin className="h-3.5 w-3.5 shrink-0" />
-              {cidades.join(", ")}
+              {cidades.length > 0 ? cidades.join(", ") : "Sem unidades cadastradas"}
             </li>
             <li className="flex items-center gap-1.5">
               <CalendarDays className="h-3.5 w-3.5 shrink-0" />

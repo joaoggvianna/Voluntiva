@@ -1,5 +1,6 @@
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
 import {
   Dialog,
   DialogContent,
@@ -20,9 +21,9 @@ import {
 import { Textarea } from "@/components/ui/textarea"
 import { SeletorChips } from "@/components/SeletorChips"
 import { useApp } from "@/contexto/AppContexto"
-import { CAUSAS } from "@/data/ongs"
-import { HABILIDADES } from "@/data/habilidades"
-import { atualizarAcao, criarAcao } from "@/lib/servico"
+import { ouNulo, paraInstante } from "@/lib/adaptadores"
+import { api } from "@/lib/api"
+import { CAUSAS } from "@/lib/dominio"
 import { hojeIso } from "@/lib/utils"
 
 function valoresIniciais(acao, ong) {
@@ -30,46 +31,92 @@ function valoresIniciais(acao, ong) {
     return {
       titulo: "",
       descricao: "",
-      causa: ong?.causa ?? "",
+      causa: ong?.causaValor ?? "",
       unidadeId: "",
+      localTexto: "",
       data: "",
       horaInicio: "08:00",
       horaFim: "12:00",
       vagas: "10",
       habilidades: [],
+      publicar: true,
     }
   }
-  const [horaInicio, horaFim] = acao.horario.split(" às ")
   return {
     titulo: acao.titulo,
     descricao: acao.descricao,
-    causa: acao.causa,
-    unidadeId: String(acao.unidadeId),
+    causa: acao.causaValor ?? "",
+    unidadeId: acao.unidadeId ?? "",
+    localTexto: acao.localTexto,
     data: acao.data,
-    horaInicio,
-    horaFim,
+    horaInicio: acao.horaInicio,
+    horaFim: acao.horaFim,
     vagas: String(acao.vagas),
     habilidades: acao.habilidades,
+    publicar: false,
   }
 }
 
+function validar(valores, unidades, editando) {
+  if (valores.titulo.trim().length < 5) return "Informe um título com pelo menos 5 caracteres."
+  if (valores.descricao.trim().length < 20) return "Descreva a ação em pelo menos 20 caracteres."
+  if (!valores.causa) return "Selecione a causa da ação."
+  if (!unidades.some((u) => u.id === valores.unidadeId)) return "Selecione uma das unidades da sua ONG."
+  if (!valores.data) return "Informe a data da ação."
+  if (!valores.horaInicio || !valores.horaFim) return "Informe o horário de início e de término."
+  if (valores.horaFim <= valores.horaInicio) return "O horário de término deve ser depois do início."
+  const vagas = Number(valores.vagas)
+  if (!Number.isInteger(vagas) || vagas < 1) return "Informe uma quantidade de vagas válida."
+  if (!editando && valores.data < hojeIso()) return "A data da ação não pode estar no passado."
+  return null
+}
+
 export function FormularioAcao({ aberto, aoFechar, acao, ong, unidades }) {
-  const { executar } = useApp()
+  const { executar, catalogoHabilidades } = useApp()
   const [valores, setValores] = useState(() => valoresIniciais(acao, ong))
+  const [erro, setErro] = useState(null)
+  const [enviando, setEnviando] = useState(false)
 
   function alterar(campo, valor) {
     setValores((atual) => ({ ...atual, [campo]: valor }))
   }
 
-  function enviar(evento) {
+  async function enviar(evento) {
     evento.preventDefault()
-    const resposta = executar(
+    const problema = validar(valores, unidades, Boolean(acao))
+    setErro(problema)
+    if (problema) return
+
+    const idPorNome = Object.fromEntries(catalogoHabilidades.map((h) => [h.nome, h.id]))
+    const corpo = {
+      titulo: valores.titulo.trim(),
+      descricao: valores.descricao.trim(),
+      causa: valores.causa,
+      unidade_id: valores.unidadeId,
+      local_texto: ouNulo(valores.localTexto),
+      inicio: paraInstante(valores.data, valores.horaInicio),
+      fim: paraInstante(valores.data, valores.horaFim),
+      vagas: Number(valores.vagas),
+      habilidades: valores.habilidades.map((nome) => idPorNome[nome]).filter(Boolean),
+    }
+
+    setEnviando(true)
+    const resposta = await executar(
       () =>
         acao
-          ? atualizarAcao(acao.id, ong.id, valores)
-          : criarAcao(ong.id, valores),
-      acao ? "Ação atualizada com sucesso." : "Ação criada com sucesso."
+          ? api.atualizarAcao(acao.id, corpo)
+          : api.criarAcao({
+              ...corpo,
+              ong_id: ong.id,
+              status: valores.publicar ? "publicada" : "rascunho",
+            }),
+      acao
+        ? "Ação atualizada com sucesso."
+        : valores.publicar
+          ? "Ação publicada."
+          : "Rascunho salvo."
     )
+    setEnviando(false)
     if (resposta.ok) aoFechar()
   }
 
@@ -81,11 +128,11 @@ export function FormularioAcao({ aberto, aoFechar, acao, ong, unidades }) {
           <DialogDescription>
             {acao
               ? "Alterações em data, horário ou local notificam os inscritos."
-              : "Voluntários compatíveis com a ação serão notificados."}
+              : "Ao publicar, os voluntários compatíveis com a ação são notificados."}
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={enviar} className="space-y-4">
+        <form onSubmit={enviar} className="space-y-4" noValidate>
           <div className="space-y-2">
             <Label htmlFor="acao-titulo">Título</Label>
             <Input
@@ -116,8 +163,8 @@ export function FormularioAcao({ aberto, aoFechar, acao, ong, unidades }) {
                 </SelectTrigger>
                 <SelectContent>
                   {CAUSAS.map((causa) => (
-                    <SelectItem key={causa} value={causa}>
-                      {causa}
+                    <SelectItem key={causa.valor} value={causa.valor}>
+                      {causa.rotulo}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -131,13 +178,23 @@ export function FormularioAcao({ aberto, aoFechar, acao, ong, unidades }) {
                 </SelectTrigger>
                 <SelectContent>
                   {unidades.map((unidade) => (
-                    <SelectItem key={unidade.id} value={String(unidade.id)}>
+                    <SelectItem key={unidade.id} value={unidade.id}>
                       {unidade.nome} — {unidade.cidade}/{unidade.uf}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="acao-local">Ponto de encontro (opcional)</Label>
+            <Input
+              id="acao-local"
+              value={valores.localTexto}
+              onChange={(e) => alterar("localTexto", e.target.value)}
+              placeholder="Ex.: Portão 2 do parque"
+            />
           </div>
 
           <div className="grid gap-4 sm:grid-cols-4">
@@ -181,23 +238,49 @@ export function FormularioAcao({ aberto, aoFechar, acao, ong, unidades }) {
               onChange={(e) => alterar("vagas", e.target.value)}
               className="sm:w-32"
             />
+            {acao && acao.inscritos > 0 && (
+              <p className="text-xs text-muted-foreground">
+                Já há {acao.inscritos} inscritos: as vagas não podem ficar abaixo disso.
+              </p>
+            )}
           </div>
 
           <div className="space-y-2">
             <Label>Habilidades desejadas (opcional)</Label>
             <SeletorChips
               rotulo="Habilidades desejadas"
-              opcoes={HABILIDADES}
+              opcoes={catalogoHabilidades.map((h) => h.nome)}
               valor={valores.habilidades}
               aoAlterar={(v) => alterar("habilidades", v)}
             />
           </div>
 
+          {!acao && (
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="acao-publicar"
+                checked={valores.publicar}
+                onCheckedChange={(marcado) => alterar("publicar", Boolean(marcado))}
+              />
+              <Label htmlFor="acao-publicar" className="font-normal">
+                Publicar agora (desmarque para salvar como rascunho)
+              </Label>
+            </div>
+          )}
+
+          {erro && (
+            <p className="text-sm text-destructive" role="alert">
+              {erro}
+            </p>
+          )}
+
           <DialogFooter className="gap-2 sm:gap-0">
             <Button type="button" variant="outline" onClick={aoFechar}>
               Cancelar
             </Button>
-            <Button type="submit">{acao ? "Salvar alterações" : "Criar ação"}</Button>
+            <Button type="submit" disabled={enviando}>
+              {enviando ? "Salvando..." : acao ? "Salvar alterações" : "Criar ação"}
+            </Button>
           </DialogFooter>
         </form>
       </DialogContent>

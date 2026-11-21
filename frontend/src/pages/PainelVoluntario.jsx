@@ -7,14 +7,23 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Carregando, ErroCarga } from "@/components/Carregando"
 import { ConfirmarDialogo } from "@/components/ConfirmarDialogo"
 import { EstadoVazio } from "@/components/EstadoVazio"
 import { ListaNotificacoes } from "@/components/ListaNotificacoes"
 import { SeletorChips } from "@/components/SeletorChips"
 import { SeloCausa } from "@/components/SeloCausa"
 import { useApp } from "@/contexto/AppContexto"
-import { DIAS_SEMANA, HABILIDADES, TURNOS } from "@/data/habilidades"
-import { atualizarPerfil, cancelarInscricao, historico, listarInscricoes } from "@/lib/servico"
+import {
+  disponibilidadeParaJanelas,
+  localResumo,
+  paraHistorico,
+  paraMinhaInscricao,
+  somenteDigitos,
+} from "@/lib/adaptadores"
+import { api } from "@/lib/api"
+import { DIAS_SEMANA, TURNOS } from "@/lib/dominio"
+import { useCarregar } from "@/lib/useCarregar"
 import { formatarData, formatarTelefone } from "@/lib/utils"
 
 function BlocoNumero({ icone: Icone, valor, rotulo }) {
@@ -34,7 +43,7 @@ function BlocoNumero({ icone: Icone, valor, rotulo }) {
 }
 
 function AbaInscricoes({ inscricoes }) {
-  const { usuario, executar } = useApp()
+  const { executar } = useApp()
   const [cancelando, setCancelando] = useState(null)
   const vigentes = inscricoes.filter((i) => i.acao.situacao !== "concluida")
 
@@ -74,7 +83,7 @@ function AbaInscricoes({ inscricoes }) {
                       <CalendarDays className="h-4 w-4" /> {formatarData(acao.data)} · {acao.horario}
                     </span>
                     <span className="flex items-center gap-1.5">
-                      <MapPin className="h-4 w-4" /> {acao.unidade?.cidade}/{acao.unidade?.uf}
+                      <MapPin className="h-4 w-4" /> {localResumo(acao)}
                     </span>
                   </p>
                 </div>
@@ -105,7 +114,7 @@ function AbaInscricoes({ inscricoes }) {
         rotuloConfirmar="Cancelar participação"
         destrutivo
         aoConfirmar={() =>
-          executar(() => cancelarInscricao(usuario.id, cancelando.id), "Participação cancelada.")
+          executar(() => api.cancelarInscricao(cancelando.id), "Participação cancelada.")
         }
       />
     </>
@@ -128,13 +137,13 @@ function AbaHistorico({ resumo }) {
       <div className="flex flex-wrap gap-2 text-sm">
         <Badge variant="secondary">{resumo.total} ações realizadas</Badge>
         <Badge>{resumo.presentes} presenças</Badge>
-        {resumo.ausentes > 0 && <Badge variant="outline">{resumo.ausentes} ausências</Badge>}
-        {resumo.pendentes > 0 && (
-          <Badge variant="outline">{resumo.pendentes} aguardando registro</Badge>
-        )}
+        {resumo.ausentes > 0 && <Badge variant="outline">{resumo.ausentes} sem presença</Badge>}
+        <Badge variant="outline">
+          {resumo.totalHoras.toLocaleString("pt-BR", { maximumFractionDigits: 2 })} horas de voluntariado
+        </Badge>
       </div>
       <ul className="divide-y rounded-lg border">
-        {resumo.itens.map(({ id, acao, presenca }) => (
+        {resumo.itens.map(({ id, acao, presenca, horas }) => (
           <li key={id} className="flex flex-wrap items-center justify-between gap-3 p-4">
             <div className="min-w-0">
               <Link to={`/acoes/${acao.id}`} className="font-medium hover:text-primary">
@@ -147,10 +156,10 @@ function AbaHistorico({ resumo }) {
             {presenca === "presente" && (
               <Badge className="gap-1">
                 <CheckCircle2 className="h-3 w-3" /> Presente
+                {horas != null && ` · ${horas.toLocaleString("pt-BR")} h`}
               </Badge>
             )}
-            {presenca === "ausente" && <Badge variant="destructive">Ausente</Badge>}
-            {presenca === null && <Badge variant="outline">Aguardando registro</Badge>}
+            {presenca === "ausente" && <Badge variant="outline">Sem presença registrada</Badge>}
           </li>
         ))}
       </ul>
@@ -159,25 +168,33 @@ function AbaHistorico({ resumo }) {
 }
 
 function AbaPerfil() {
-  const { usuario, executar } = useApp()
+  const { usuario, executar, catalogoHabilidades, atualizarUsuario } = useApp()
   const [nome, setNome] = useState(usuario.nome)
   const [telefone, setTelefone] = useState(usuario.telefone)
   const [habilidades, setHabilidades] = useState(usuario.habilidades)
   const [dias, setDias] = useState(usuario.disponibilidade.dias)
   const [turnos, setTurnos] = useState(usuario.disponibilidade.turnos)
 
-  function salvar(evento) {
+  const [salvando, setSalvando] = useState(false)
+  const idPorNome = Object.fromEntries(catalogoHabilidades.map((h) => [h.nome, h.id]))
+
+  async function salvar(evento) {
     evento.preventDefault()
-    executar(
+    setSalvando(true)
+    const resposta = await executar(
       () =>
-        atualizarPerfil(usuario.id, {
-          nome,
-          telefone,
-          habilidades,
-          disponibilidade: { dias, turnos },
+        api.atualizarPerfil({
+          nome: nome.trim(),
+          telefone: somenteDigitos(telefone) || null,
+          habilidades: habilidades
+            .filter((h) => idPorNome[h])
+            .map((h) => ({ habilidade_id: idPorNome[h] })),
+          disponibilidade: disponibilidadeParaJanelas({ dias, turnos }),
         }),
       "Perfil atualizado."
     )
+    if (resposta.ok) await atualizarUsuario().catch(() => {})
+    setSalvando(false)
   }
 
   return (
@@ -214,7 +231,7 @@ function AbaPerfil() {
         <CardContent>
           <SeletorChips
             rotulo="Habilidades"
-            opcoes={HABILIDADES}
+            opcoes={catalogoHabilidades.map((h) => h.nome)}
             valor={habilidades}
             aoAlterar={setHabilidades}
           />
@@ -240,17 +257,23 @@ function AbaPerfil() {
         </CardContent>
       </Card>
 
-      <Button type="submit">Salvar perfil</Button>
+      <Button type="submit" disabled={salvando}>
+        {salvando ? "Salvando..." : "Salvar perfil"}
+      </Button>
     </form>
   )
 }
 
 export function PainelVoluntario() {
-  const { usuario, notificacoesNaoLidas } = useApp()
+  const { usuario, notificacoesNaoLidas, versao } = useApp()
   const [params, setParams] = useSearchParams()
   const aba = params.get("aba") ?? "inscricoes"
-  const inscricoes = listarInscricoes(usuario.id)
-  const resumo = historico(usuario.id)
+  const { dados, carregando, erro, recarregar } = useCarregar(async () => {
+    const [inscricoes, historico] = await Promise.all([api.minhasInscricoes(), api.historico()])
+    return { inscricoes: inscricoes.map(paraMinhaInscricao), resumo: paraHistorico(historico) }
+  }, [versao])
+  const inscricoes = dados?.inscricoes ?? []
+  const resumo = dados?.resumo ?? { itens: [], total: 0, presentes: 0, ausentes: 0, totalHoras: 0 }
   const proximas = inscricoes.filter((i) => i.acao.situacao === "ativa")
 
   return (
@@ -283,10 +306,16 @@ export function PainelVoluntario() {
           </TabsTrigger>
         </TabsList>
         <TabsContent value="inscricoes" className="mt-6">
-          <AbaInscricoes inscricoes={inscricoes} />
+          {erro && !dados ? (
+            <ErroCarga erro={erro} aoTentarDeNovo={recarregar} />
+          ) : carregando && !dados ? (
+            <Carregando />
+          ) : (
+            <AbaInscricoes inscricoes={inscricoes} />
+          )}
         </TabsContent>
         <TabsContent value="historico" className="mt-6">
-          <AbaHistorico resumo={resumo} />
+          {carregando && !dados ? <Carregando /> : <AbaHistorico resumo={resumo} />}
         </TabsContent>
         <TabsContent value="perfil" className="mt-6">
           <AbaPerfil key={usuario.id} />

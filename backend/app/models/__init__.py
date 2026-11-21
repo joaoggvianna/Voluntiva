@@ -5,6 +5,7 @@ o que é necessário para resolver os relationships por string.
 """
 from app.models.acao import AcaoHabilidade, AcaoSocial, Habilidade
 from app.models.enums import (
+    CausaSocial,
     NivelHabilidade,
     PapelMembro,
     StatusAcao,
@@ -27,6 +28,6 @@ __all__ = [
     "Inscricao", "Presenca", "Notificacao",
     "Ong", "OngMembro", "Unidade",
     "Usuario", "Voluntario", "VoluntarioDisponibilidade", "VoluntarioHabilidade",
-    "NivelHabilidade", "PapelMembro", "StatusAcao", "StatusInscricao",
+    "CausaSocial", "NivelHabilidade", "PapelMembro", "StatusAcao", "StatusInscricao",
     "TipoNotificacao", "TipoUsuario",
 ]

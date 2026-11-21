@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react"
 import { useSearchParams } from "react-router-dom"
 import { Search, SearchX } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -9,10 +10,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { Carregando, ErroCarga } from "@/components/Carregando"
 import { CartaoOng } from "@/components/CartaoOng"
 import { EstadoVazio } from "@/components/EstadoVazio"
-import { CAUSAS, UFS } from "@/data/ongs"
-import { listarOngs } from "@/lib/servico"
+import { paraOng } from "@/lib/adaptadores"
+import { api } from "@/lib/api"
+import { CAUSAS, UFS } from "@/lib/dominio"
+import { useCarregar } from "@/lib/useCarregar"
 
 const TODAS = "todas"
 
@@ -29,7 +33,20 @@ export function Ongs() {
     setParams(proximo, { replace: true })
   }
 
-  const ongs = listarOngs({ busca, causa, uf })
+  // Espera o usuário parar de digitar antes de consultar o servidor.
+  const [buscaAtrasada, setBuscaAtrasada] = useState(busca)
+  useEffect(() => {
+    const id = setTimeout(() => setBuscaAtrasada(busca), 350)
+    return () => clearTimeout(id)
+  }, [busca])
+
+  const { dados: ongs, carregando, erro, recarregar } = useCarregar(
+    () =>
+      api
+        .listarOngs({ busca: buscaAtrasada || undefined, causa: causa || undefined, uf: uf || undefined })
+        .then((lista) => lista.map(paraOng)),
+    [buscaAtrasada, causa, uf]
+  )
 
   return (
     <div className="container mx-auto space-y-6 px-4 py-10">
@@ -61,8 +78,8 @@ export function Ongs() {
           <SelectContent>
             <SelectItem value={TODAS}>Todas as causas</SelectItem>
             {CAUSAS.map((item) => (
-              <SelectItem key={item} value={item}>
-                {item}
+              <SelectItem key={item.valor} value={item.valor}>
+                {item.rotulo}
               </SelectItem>
             ))}
           </SelectContent>
@@ -90,7 +107,11 @@ export function Ongs() {
         )}
       </div>
 
-      {ongs.length === 0 ? (
+      {erro && !ongs ? (
+        <ErroCarga erro={erro} aoTentarDeNovo={recarregar} />
+      ) : carregando && !ongs ? (
+        <Carregando />
+      ) : ongs.length === 0 ? (
         <EstadoVazio
           icone={SearchX}
           titulo="Nenhuma ONG encontrada"

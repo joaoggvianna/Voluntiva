@@ -15,12 +15,15 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Carregando, ErroCarga } from "@/components/Carregando"
 import { ConfirmarDialogo } from "@/components/ConfirmarDialogo"
 import { EstadoVazio } from "@/components/EstadoVazio"
 import { SeloCausa } from "@/components/SeloCausa"
 import { useApp } from "@/contexto/AppContexto"
+import { localResumo, paraAcao, paraOng } from "@/lib/adaptadores"
+import { api } from "@/lib/api"
 import { calcularCompatibilidade } from "@/lib/compatibilidade"
-import { cancelarInscricao, inscrever, obterAcao, obterInscricao } from "@/lib/servico"
+import { useCarregar } from "@/lib/useCarregar"
 import { cn, diaDaSemana, formatarData, turnoDoHorario } from "@/lib/utils"
 
 function ItemCompatibilidade({ ok, children }) {
@@ -42,11 +45,36 @@ function ItemCompatibilidade({ ok, children }) {
 export function AcaoDetalhe() {
   const { id } = useParams()
   const local = useLocation()
-  const { usuario, executar } = useApp()
+  const { usuario, executar, versao } = useApp()
   const [confirmando, setConfirmando] = useState(false)
-  const acao = obterAcao(id)
+  const ehVoluntario = usuario?.tipo === "voluntario"
 
-  if (!acao) {
+  const { dados, carregando, erro, recarregar } = useCarregar(async () => {
+    const acaoApi = await api.obterAcao(id)
+    const [ong, inscricoes] = await Promise.all([
+      api.obterOng(acaoApi.ong_id).then(paraOng).catch(() => null),
+      ehVoluntario ? api.minhasInscricoes() : Promise.resolve([]),
+    ])
+    return {
+      acao: paraAcao(acaoApi),
+      ong,
+      inscricao: inscricoes.find((i) => i.acao_id === acaoApi.acao_id) ?? null,
+    }
+  }, [id, ehVoluntario, versao])
+
+  // 404 (não existe ou é rascunho de outra ONG) e 422 (id malformado).
+  const naoEncontrada = erro && (erro.status === 404 || erro.status === 422)
+
+  if (carregando && !dados) return <Carregando />
+  if (erro && !naoEncontrada && !dados) {
+    return (
+      <div className="container mx-auto max-w-2xl px-4 py-16">
+        <ErroCarga erro={erro} aoTentarDeNovo={recarregar} />
+      </div>
+    )
+  }
+
+  if (naoEncontrada || !dados) {
     return (
       <div className="container mx-auto max-w-2xl px-4 py-16">
         <EstadoVazio
@@ -62,9 +90,9 @@ export function AcaoDetalhe() {
     )
   }
 
-  const ehVoluntario = usuario?.tipo === "voluntario"
-  const ehDonaDaAcao = usuario?.tipo === "ong" && usuario.ongId === acao.ongId
-  const inscricao = ehVoluntario ? obterInscricao(usuario.id, acao.id) : null
+  const { acao, ong, inscricao } = dados
+  const ehDonaDaAcao =
+    usuario?.tipo === "admin" || Boolean(usuario?.ongs?.some((o) => o.id === acao.ongId))
   const compatibilidade = ehVoluntario ? calcularCompatibilidade(acao, usuario) : null
   const ativa = acao.situacao === "ativa"
 
@@ -88,7 +116,7 @@ export function AcaoDetalhe() {
             <h1 className="text-3xl font-bold leading-tight md:text-4xl">{acao.titulo}</h1>
             <p className="text-muted-foreground">
               Organizada por{" "}
-              <Link to={`/ongs/${acao.ong.id}`} className="font-medium text-primary hover:underline">
+              <Link to={`/ongs/${acao.ongId}`} className="font-medium text-primary hover:underline">
                 {acao.ong.nome}
               </Link>
             </p>
@@ -96,7 +124,9 @@ export function AcaoDetalhe() {
 
           <section className="space-y-2">
             <h2 className="text-lg font-semibold">Sobre a ação</h2>
-            <p className="leading-relaxed text-muted-foreground">{acao.descricao}</p>
+            <p className="whitespace-pre-line leading-relaxed text-muted-foreground">
+              {acao.descricao || "A ONG ainda não descreveu esta ação."}
+            </p>
           </section>
 
           {acao.habilidades.length > 0 && (
@@ -119,20 +149,29 @@ export function AcaoDetalhe() {
                 <p className="flex items-start gap-2">
                   <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
                   <span>
-                    <span className="font-medium">{acao.unidade.nome}</span>
-                    <br />
+                    {acao.unidade && (
+                      <>
+                        <span className="font-medium">{acao.unidade.nome}</span>
+                        <br />
+                      </>
+                    )}
                     <span className="text-muted-foreground">
-                      {acao.unidade.endereco} — {acao.unidade.cidade}/{acao.unidade.uf}
-                      {acao.unidade.cep && ` — CEP ${acao.unidade.cep}`}
+                      {[acao.localTexto, localResumo(acao)]
+                        .filter((parte, i, lista) => parte && lista.indexOf(parte) === i)
+                        .join(" — ")}
                     </span>
                   </span>
                 </p>
-                <p className="flex items-center gap-2 text-muted-foreground">
-                  <Mail className="h-4 w-4 shrink-0 text-primary" /> {acao.ong.email}
-                </p>
-                <p className="flex items-center gap-2 text-muted-foreground">
-                  <Phone className="h-4 w-4 shrink-0 text-primary" /> {acao.ong.telefone}
-                </p>
+                {ong?.email && (
+                  <p className="flex items-center gap-2 text-muted-foreground">
+                    <Mail className="h-4 w-4 shrink-0 text-primary" /> {ong.email}
+                  </p>
+                )}
+                {ong?.telefone && (
+                  <p className="flex items-center gap-2 text-muted-foreground">
+                    <Phone className="h-4 w-4 shrink-0 text-primary" /> {ong.telefone}
+                  </p>
+                )}
               </CardContent>
             </Card>
           </section>
@@ -166,9 +205,7 @@ export function AcaoDetalhe() {
                 <Button
                   className="w-full"
                   disabled={acao.vagasRestantes === 0}
-                  onClick={() =>
-                    executar(() => inscrever(usuario.id, acao.id), "Inscrição confirmada!")
-                  }
+                  onClick={() => executar(() => api.inscrever(acao.id), "Inscrição confirmada!")}
                 >
                   {acao.vagasRestantes === 0 ? "Vagas esgotadas" : "Quero participar"}
                 </Button>
@@ -213,6 +250,12 @@ export function AcaoDetalhe() {
                 <Button asChild variant="outline" className="w-full">
                   <Link to="/painel?aba=acoes">Gerenciar no painel</Link>
                 </Button>
+              )}
+
+              {acao.situacao === "rascunho" && ehDonaDaAcao && (
+                <p className="text-sm text-muted-foreground">
+                  Rascunho: só a sua ONG vê esta ação até ela ser publicada.
+                </p>
               )}
 
               {usuario?.tipo === "ong" && !ehDonaDaAcao && (
@@ -264,9 +307,7 @@ export function AcaoDetalhe() {
         descricao={`Você deixará de participar de "${acao.titulo}" e a vaga ficará disponível para outros voluntários.`}
         rotuloConfirmar="Cancelar participação"
         destrutivo
-        aoConfirmar={() =>
-          executar(() => cancelarInscricao(usuario.id, acao.id), "Participação cancelada.")
-        }
+        aoConfirmar={() => executar(() => api.cancelarInscricao(acao.id), "Participação cancelada.")}
       />
     </div>
   )
