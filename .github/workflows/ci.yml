@@ -13,8 +13,8 @@ jobs:
       run:
         working-directory: frontend
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: '22'
           cache: npm
@@ -30,8 +30,8 @@ jobs:
       run:
         working-directory: backend
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: '3.12'
           cache: pip
@@ -66,8 +66,9 @@ jobs:
       DATABASE_URL: postgresql+psycopg://voluntiva_app:voluntiva_app_dev@localhost:5432/voluntiva
       JWT_SECRET: segredo-apenas-para-a-ci-com-mais-de-32-caracteres
       APP_ENV: test
+      EXIGIR_BANCO: "1"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Aplicar migrations e seed de desenvolvimento
         run: |
           for arquivo in db/migrations/*.sql db/dev/*.sql; do
@@ -79,7 +80,7 @@ jobs:
         run: |
           psql -v ON_ERROR_STOP=1 -f db/migrations/0003_rls_papel_app.sql
           psql -v ON_ERROR_STOP=1 -f db/migrations/0004_causa.sql
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: '3.12'
           cache: pip
@@ -87,4 +88,4 @@ jobs:
       - working-directory: backend
         run: pip install -r requirements-dev.txt
       - working-directory: backend
-        run: python -m pytest -q -m integracao
+        run: python -m pytest -m integracao -rA

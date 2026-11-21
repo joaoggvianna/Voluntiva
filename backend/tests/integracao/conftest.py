@@ -12,6 +12,7 @@ as policies de RLS da migration 0003. Sem banco no ar, todos são pulados.
 Cada teste cria os próprios dados com e-mails/nomes únicos: a suíte pode
 rodar várias vezes no mesmo banco e convive com o seed de desenvolvimento.
 """
+import os
 import uuid
 from pathlib import Path
 
@@ -40,7 +41,12 @@ def banco_disponivel():
         with engine.connect() as conexao:
             conexao.execute(text("SELECT 1 FROM public.acao_social LIMIT 1"))
     except Exception as exc:  # noqa: BLE001 - qualquer falha = sem banco
-        pytest.skip(f"PostgreSQL indisponível para integração: {exc.__class__.__name__}")
+        motivo = f"PostgreSQL indisponível para integração: {exc.__class__.__name__}: {exc}"
+        # Na CI o banco é obrigatório: pular em silêncio deixaria o job verde
+        # sem ter testado nada.
+        if os.environ.get("EXIGIR_BANCO") == "1":
+            pytest.fail(motivo)
+        pytest.skip(motivo)
     return True
 
 
