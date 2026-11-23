@@ -37,7 +37,16 @@ import type {
   Usuario,
 } from '@/types'
 
-const BASE = import.meta.env.VITE_API_URL ?? ''
+/** Origem da API. Vazio = mesma origem da página (proxy do Vite em dev,
+ *  nginx no Docker). No deploy separado (Render) é a URL pública da API.
+ *  Aceita o valor com ou sem esquema e com ou sem barra final. */
+export function normalizarOrigem(valor: string | undefined): string {
+  const limpo = (valor ?? '').trim().replace(/\/+$/, '')
+  if (!limpo) return ''
+  return /^[a-z][a-z0-9+.-]*:\/\//i.test(limpo) ? limpo : `https://${limpo}`
+}
+
+export const BASE = normalizarOrigem(import.meta.env.VITE_API_URL)
 const PREFIXO = '/api/v1'
 
 const CHAVE_ACCESS = 'voluntiva.access_token'

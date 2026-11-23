@@ -6,11 +6,15 @@
  * ------------------------------------------------------------------ */
 
 import type { Notificacao } from '@/types'
-import { tokenStore } from './api'
+import { BASE, normalizarOrigem, tokenStore } from './api'
 
 function baseWebSocket(): string {
-  const configurada = import.meta.env.VITE_WS_URL
+  // Sem esquema, normalizarOrigem põe https://; o replace vira wss://.
+  const configurada = normalizarOrigem(import.meta.env.VITE_WS_URL).replace(/^http/i, 'ws')
   if (configurada) return configurada
+  // Sem VITE_WS_URL mas com a API em outra origem (deploy no Render):
+  // o WebSocket mora no mesmo host da API, só troca http(s) por ws(s).
+  if (BASE) return BASE.replace(/^http/i, 'ws')
   // Mesma origem da página: em dev o Vite encaminha /ws, em produção o nginx.
   const protocolo = window.location.protocol === 'https:' ? 'wss' : 'ws'
   return `${protocolo}://${window.location.host}`

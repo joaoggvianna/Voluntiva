@@ -1,0 +1,99 @@
+# =====================================================================
+# Voluntiva — Blueprint do Render (deploy gratuito)
+#
+# Passo a passo completo em docs/DEPLOY.md.
+#
+#   voluntiva-api  Web Service gratuito: API REST + WebSocket (FastAPI)
+#   voluntiva-web  Static Site gratuito: interface React (build do Vite)
+#
+# O banco continua no Supabase (plano gratuito). O servidor VAP (TCP puro)
+# NÃO é publicado aqui: nenhum plano gratuito aceita TCP cru. Ele roda
+# localmente só para a demonstração do protocolo.
+#
+# Valores marcados com `sync: false` são pedidos pelo painel do Render na
+# criação do Blueprint e NUNCA ficam neste arquivo (são segredos ou
+# dependem das URLs que o Render gera).
+# =====================================================================
+
+services:
+  # -------------------------------------------------------------------
+  # API (HTTP + WebSocket)
+  # -------------------------------------------------------------------
+  - type: web
+    name: voluntiva-api
+    runtime: python
+    plan: free
+    # Virgínia é a região do Render mais próxima do Supabase em São Paulo.
+    region: virginia
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    # O Render define $PORT. --proxy-headers faz o FastAPI enxergar o
+    # esquema https:// e o IP real que chegam pelo proxy do Render.
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT --proxy-headers --forwarded-allow-ips "*"
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.8
+      - key: APP_ENV
+        value: production
+      - key: DEBUG
+        value: "false"
+      - key: FUSO_HORARIO
+        value: America/Sao_Paulo
+      # Supabase > Connect > Session pooler (porta 5432), usuário
+      # voluntiva_app.<project_ref>, com o prefixo postgresql+psycopg://
+      - key: DATABASE_URL
+        sync: false
+      # Gerado pelo Render (256 bits aleatórios); não precisa digitar.
+      - key: JWT_SECRET
+        generateValue: true
+      # URL do Static Site, ex.: https://voluntiva-web.onrender.com
+      - key: CORS_ORIGINS
+        sync: false
+      # Pool pequeno: o Session pooler gratuito do Supabase tem poucas
+      # conexões e a instância gratuita tem 512 MB de RAM.
+      - key: DB_POOL_SIZE
+        value: "3"
+      - key: DB_MAX_OVERFLOW
+        value: "2"
+
+  # -------------------------------------------------------------------
+  # Interface web (arquivos estáticos)
+  # -------------------------------------------------------------------
+  - type: web
+    name: voluntiva-web
+    runtime: static
+    rootDir: frontend
+    buildCommand: npm ci && npm run build
+    staticPublishPath: dist
+    autoDeploy: true
+    envVars:
+      # Mesma versão do CI e do Dockerfile do frontend.
+      - key: NODE_VERSION
+        value: "22"
+      # URL pública da API, ex.: https://voluntiva-api.onrender.com
+      # O WebSocket é derivado dela (wss://mesmo-host); VITE_WS_URL só
+      # precisa ser definido se a API de tempo real ficar em outro host.
+      # Variáveis VITE_ entram no bundle no build: mudou, faça redeploy.
+      - key: VITE_API_URL
+        sync: false
+    routes:
+      # SPA: qualquer rota (ex.: /acoes/123) devolve o index.html para o
+      # react-router resolver no navegador.
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    headers:
+      - path: /assets/*
+        name: Cache-Control
+        value: public, max-age=31536000, immutable
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+      - path: /*
+        name: X-Frame-Options
+        value: DENY
+      - path: /*
+        name: Referrer-Policy
+        value: strict-origin-when-cross-origin

@@ -159,6 +159,10 @@ docker compose up --build    # web em http://localhost:8080
 O passo a passo completo, as contas do seed e o roteiro de demonstração
 estão em [docs/GUIA_EXECUCAO.md](docs/GUIA_EXECUCAO.md).
 
+Para publicar de graça (Render + Supabase), siga
+[docs/DEPLOY.md](docs/DEPLOY.md); a configuração dos serviços está em
+[render.yaml](render.yaml).
+
 ### Backend
 
 ```bash

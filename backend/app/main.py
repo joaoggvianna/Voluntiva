@@ -78,8 +78,16 @@ async def _tratar_erro_dominio(request: Request, exc: VoluntivaError) -> JSONRes
 
 
 @app.get("/health", tags=["infra"])
+@app.head("/health", include_in_schema=False)
 def health():
-    """Usado pelo healthcheck do Docker Compose."""
+    """Usado pelo healthcheck do Docker Compose e do Render, e pelo
+    monitor externo (UptimeRobot) que mantém a instância gratuita acordada.
+
+    Aceita HEAD porque vários monitores usam HEAD por padrão; sem isso a
+    resposta seria 405 e o monitor marcaria a API como fora do ar.
+    De quebra, o SELECT 1 a cada ping mantém o projeto Supabase gratuito
+    ativo (ele pausa após alguns dias sem acesso ao banco).
+    """
     try:
         with engine.connect() as conexao:
             conexao.execute(text("SELECT 1"))
