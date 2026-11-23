@@ -18,6 +18,7 @@ from app.core.exceptions import (
     ConflitoDeEstado,
     CredenciaisInvalidas,
     DadosInvalidos,
+    MuitasTentativas,
     PermissaoNegada,
     RecursoNaoEncontrado,
     UsuarioInativo,
@@ -34,6 +35,7 @@ _STATUS_POR_EXCECAO: dict[type[VoluntivaError], int] = {
     RecursoNaoEncontrado: status.HTTP_404_NOT_FOUND,
     ConflitoDeEstado: status.HTTP_409_CONFLICT,
     DadosInvalidos: status.HTTP_422_UNPROCESSABLE_CONTENT,
+    MuitasTentativas: status.HTTP_429_TOO_MANY_REQUESTS,
 }
 
 
@@ -54,6 +56,8 @@ app = FastAPI(
     lifespan=lifespan,
     docs_url="/docs" if settings.app_env != "production" else None,
     redoc_url=None,
+    # Sem /docs em produção, o schema também não precisa ficar público.
+    openapi_url="/openapi.json" if settings.app_env != "production" else None,
 )
 
 app.add_middleware(
@@ -65,6 +69,25 @@ app.add_middleware(
     # Total para paginação de GET /acoes; sem isto o navegador o esconde.
     expose_headers=["X-Total-Count"],
 )
+
+
+_CABECALHOS_SEGURANCA = {
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "DENY",
+    "Referrer-Policy": "no-referrer",
+}
+
+
+@app.middleware("http")
+async def _cabecalhos_seguranca(request: Request, call_next):
+    resposta = await call_next(request)
+    for nome, valor in _CABECALHOS_SEGURANCA.items():
+        resposta.headers.setdefault(nome, valor)
+    # Respostas de /auth carregam tokens: nenhum cache (navegador ou proxy)
+    # deve guardá-las.
+    if request.url.path.startswith(f"{settings.api_v1_prefix}/auth"):
+        resposta.headers["Cache-Control"] = "no-store"
+    return resposta
 
 
 @app.exception_handler(VoluntivaError)

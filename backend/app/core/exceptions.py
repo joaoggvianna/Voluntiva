@@ -19,6 +19,11 @@ class CredenciaisInvalidas(VoluntivaError):
     codigo = "credenciais_invalidas"
 
 
+class MuitasTentativas(VoluntivaError):
+    """Login bloqueado temporariamente após falhas seguidas."""
+    codigo = "muitas_tentativas"
+
+
 class UsuarioInativo(VoluntivaError):
     codigo = "usuario_inativo"
 

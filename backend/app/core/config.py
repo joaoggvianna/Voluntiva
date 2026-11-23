@@ -60,6 +60,15 @@ class Settings(BaseSettings):
     argon2_time_cost: int = 3
     argon2_memory_cost: int = 65536
     argon2_parallelism: int = 4
+    # Hashes simultâneos. Cada um aloca argon2_memory_cost KiB (64 MB no
+    # padrão): sem teto, ~10 logins ao mesmo tempo estouram os 512 MB da
+    # instância gratuita do Render. Os excedentes esperam na fila.
+    argon2_max_simultaneos: int = 2
+
+    # ---- Limite de login ----
+    # Falhas por e-mail dentro da janela antes de responder 429.
+    login_max_falhas: int = 10
+    login_janela_segundos: int = 900
 
     @property
     def cors_origins_list(self) -> list[str]:

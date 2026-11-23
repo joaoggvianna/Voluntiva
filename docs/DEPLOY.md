@@ -228,6 +228,8 @@ próxima carga da página (o WebSocket vive no processo da API).
 | Sino não atualiza em tempo real | WebSocket bloqueado ou API dormindo | confira a aba **WS** (status 101); o cliente reconecta sozinho |
 | Primeira abertura demora ~1 minuto | a API estava dormindo | configure o UptimeRobot (seção 6) |
 | `/health` mostra `"banco":"indisponivel"` | Supabase pausado ou URL errada | em Supabase, **Restore project** se estiver pausado |
+| Console mostra `Refused to connect ... Content Security Policy` | a API está fora de `*.onrender.com` (domínio próprio) | acrescente o domínio em `connect-src` no header CSP do `render.yaml` |
+| Login responde **429** | 10 senhas erradas seguidas para o mesmo e-mail | espere 15 minutos (ou reinicie a API); ver `docs/SECURITY.md` |
 
 Logs: **voluntiva-api > Logs** no painel do Render.
 

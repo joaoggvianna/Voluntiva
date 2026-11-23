@@ -7,7 +7,13 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.core.exceptions import CredenciaisInvalidas, DadosInvalidos, UsuarioInativo
+from app.core.exceptions import (
+    CredenciaisInvalidas,
+    DadosInvalidos,
+    MuitasTentativas,
+    UsuarioInativo,
+)
+from app.core.limites import LimiteTentativas
 from app.core.security import (
     criar_access_token,
     criar_refresh_token,
@@ -19,23 +25,35 @@ from app.core.security import (
 from app.models import TipoUsuario, Usuario, Voluntario
 from app.schemas.auth import RegistroVoluntarioRequest
 
+_limite_login = LimiteTentativas(settings.login_max_falhas, settings.login_janela_segundos)
+
 
 def autenticar(db: Session, email: str, senha: str) -> Usuario:
     """Valida credenciais e devolve o usuário.
 
     Mesma mensagem de erro para e-mail inexistente e senha errada: revelar
-    qual dos dois falhou permite enumerar contas cadastradas.
+    qual dos dois falhou permite enumerar contas cadastradas. O bloqueio
+    por excesso de falhas também vale para e-mails inexistentes, pelo
+    mesmo motivo.
     """
-    usuario = db.scalar(select(Usuario).where(func.lower(Usuario.email) == email.lower()))
+    chave = email.lower()
+    if _limite_login.bloqueado(chave):
+        raise MuitasTentativas("Muitas tentativas de login. Tente de novo em alguns minutos.")
+
+    usuario = db.scalar(select(Usuario).where(func.lower(Usuario.email) == chave))
 
     if usuario is None:
         # Gasta o mesmo tempo de um verify real para não vazar a
         # existência da conta pelo tempo de resposta.
         hash_senha(senha)
+        _limite_login.registrar_falha(chave)
         raise CredenciaisInvalidas("E-mail ou senha incorretos")
 
     if not verificar_senha(senha, usuario.senha_hash):
+        _limite_login.registrar_falha(chave)
         raise CredenciaisInvalidas("E-mail ou senha incorretos")
+
+    _limite_login.limpar(chave)
 
     if not usuario.ativo:
         raise UsuarioInativo("Conta desativada")

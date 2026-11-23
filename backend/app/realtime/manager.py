@@ -17,7 +17,7 @@ class GerenciadorConexoes:
         self._lock = asyncio.Lock()
 
     async def conectar(self, usuario_id: uuid.UUID, ws: WebSocket) -> None:
-        await ws.accept()
+        """Registra uma conexão já aceita e autenticada (ver api/v1/ws.py)."""
         async with self._lock:
             self._conexoes[usuario_id].add(ws)
 

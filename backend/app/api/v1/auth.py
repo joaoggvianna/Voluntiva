@@ -3,7 +3,12 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import usuario_atual
-from app.core.exceptions import CredenciaisInvalidas, DadosInvalidos, UsuarioInativo
+from app.core.exceptions import (
+    CredenciaisInvalidas,
+    DadosInvalidos,
+    MuitasTentativas,
+    UsuarioInativo,
+)
 from app.db.session import get_db
 from app.models import Usuario
 from app.schemas.auth import (
@@ -34,6 +39,10 @@ def login(dados: LoginRequest, db: Session = Depends(get_db)):
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, exc.mensagem)
     except UsuarioInativo as exc:
         raise HTTPException(status.HTTP_403_FORBIDDEN, exc.mensagem)
+    except MuitasTentativas as exc:
+        raise HTTPException(
+            status.HTTP_429_TOO_MANY_REQUESTS, exc.mensagem, headers={"Retry-After": "900"}
+        )
     return auth_service.emitir_tokens(usuario)
 
 

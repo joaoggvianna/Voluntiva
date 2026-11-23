@@ -3,6 +3,7 @@
 O banco NÃO calcula nem valida hash — ver comentário na tabela `usuario`
 da migration. Toda a criptografia de credencial vive aqui.
 """
+import threading
 from datetime import datetime, timedelta, timezone
 from typing import Any
 from uuid import UUID
@@ -19,16 +20,23 @@ _hasher = PasswordHasher(
     parallelism=settings.argon2_parallelism,
 )
 
+# Teto de hashes simultâneos (ver Settings.argon2_max_simultaneos): uma
+# rajada de logins enfileira aqui em vez de derrubar o processo por falta
+# de memória.
+_vagas_argon2 = threading.BoundedSemaphore(max(1, settings.argon2_max_simultaneos))
+
 
 def hash_senha(senha_plana: str) -> str:
     """Gera hash Argon2id no formato PHC (começa com '$argon2id$')."""
-    return _hasher.hash(senha_plana)
+    with _vagas_argon2:
+        return _hasher.hash(senha_plana)
 
 
 def verificar_senha(senha_plana: str, senha_hash: str) -> bool:
     """Compara em tempo constante. Nunca levanta para senha errada."""
     try:
-        return _hasher.verify(senha_hash, senha_plana)
+        with _vagas_argon2:
+            return _hasher.verify(senha_hash, senha_plana)
     except (VerifyMismatchError, InvalidHashError):
         return False
 

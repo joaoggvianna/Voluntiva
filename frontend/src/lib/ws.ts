@@ -37,9 +37,12 @@ export function conectarNotificacoes(
     const token = tokenStore.get()
     if (!token) return
 
-    socket = new WebSocket(`${baseWebSocket()}/ws/notificacoes?token=${encodeURIComponent(token)}`)
+    // O token vai na primeira mensagem, não na URL: a URL do handshake
+    // fica gravada no log de acesso do servidor e do proxy.
+    socket = new WebSocket(`${baseWebSocket()}/ws/notificacoes`)
 
     socket.onopen = () => {
+      socket?.send(token)
       tentativa = 0
       heartbeat = setInterval(() => socket?.send('ping'), 30_000)
     }
